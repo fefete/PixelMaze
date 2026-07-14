@@ -11,14 +11,23 @@ import unreal
 
 DEST_TEXTURES = "/Game/PixelMaze/Textures"
 DEST_MATERIALS = "/Game/PixelMaze/Materials"
+DEST_CHARACTER_MATERIALS = "/Game/PixelMaze/Materials/Characters"
 DEST_AUDIO = "/Game/PixelMaze/Audio"
 
 MATERIAL_ASSET_NAMES = ("Floor", "Wall", "Player", "Player2", "Enemy", "Exit", "Fog")
+CHARACTER_ASSET_NAMES = tuple(
+    f"Character_{index:02d}" for index in range(1, 11)
+)
 EXTRA_TEXTURES = {
     "Icon": "icon.png",
     "TitleScreen": "title_screen.png",
     "Tileset": "tileset_4x1.png",
 }
+CHARACTER_SOURCE_FILES = {
+    f"Character_{index:02d}": f"Characters/character_{index:02d}.png"
+    for index in range(1, 11)
+}
+
 SOURCE_FILES = {
     "Floor": "floor.png",
     "Wall": "wall.png",
@@ -28,6 +37,7 @@ SOURCE_FILES = {
     "Exit": "exit.png",
     "Fog": "fog.png",
     **EXTRA_TEXTURES,
+    **CHARACTER_SOURCE_FILES,
 }
 
 AUDIO_FILES = {
@@ -75,7 +85,12 @@ def _texture_path(name: str) -> str:
 
 
 def _material_path(name: str) -> str:
-    return f"{DEST_MATERIALS}/M_{name}.M_{name}"
+    destination = (
+        DEST_CHARACTER_MATERIALS
+        if name in CHARACTER_ASSET_NAMES
+        else DEST_MATERIALS
+    )
+    return f"{destination}/M_{name}.M_{name}"
 
 
 def _sound_path(name: str) -> str:
@@ -170,7 +185,11 @@ def _create_material(name: str, texture):
     factory = unreal.MaterialFactoryNew()
     material = unreal.AssetToolsHelpers.get_asset_tools().create_asset(
         asset_name=f"M_{name}",
-        package_path=DEST_MATERIALS,
+        package_path=(
+            DEST_CHARACTER_MATERIALS
+            if name in CHARACTER_ASSET_NAMES
+            else DEST_MATERIALS
+        ),
         asset_class=unreal.Material,
         factory=factory,
     )
@@ -252,10 +271,11 @@ def _import_sound(name: str, source_filename: str, enemy_attenuation=None):
 def ensure_assets(force_rebuild: bool = False):
     unreal.EditorAssetLibrary.make_directory(DEST_TEXTURES)
     unreal.EditorAssetLibrary.make_directory(DEST_MATERIALS)
+    unreal.EditorAssetLibrary.make_directory(DEST_CHARACTER_MATERIALS)
     unreal.EditorAssetLibrary.make_directory(DEST_AUDIO)
 
     if force_rebuild:
-        for name in MATERIAL_ASSET_NAMES:
+        for name in MATERIAL_ASSET_NAMES + CHARACTER_ASSET_NAMES:
             unreal.EditorAssetLibrary.delete_asset(_material_path(name).split(".")[0])
             unreal.EditorAssetLibrary.delete_asset(_texture_path(name).split(".")[0])
         for name in EXTRA_TEXTURES:
@@ -274,6 +294,13 @@ def ensure_assets(force_rebuild: bool = False):
             if material:
                 created.append(name)
 
+    for name in CHARACTER_ASSET_NAMES:
+        texture = _import_texture(name)
+        if texture:
+            material = _create_material(name, texture)
+            if material:
+                created.append(name)
+
     for name in EXTRA_TEXTURES:
         if _import_texture(name):
             created.append(name)
@@ -282,8 +309,15 @@ def ensure_assets(force_rebuild: bool = False):
         if _import_sound(name, filename, enemy_attenuation):
             created.append(f"SW_{name}")
 
-    unreal.EditorAssetLibrary.save_directory("/Game/PixelMaze", only_if_is_dirty=False, recursive=True)
-    unreal.log(f"Pixel Maze: asset setup complete ({', '.join(created) or 'assets already existed'}).")
+    unreal.EditorAssetLibrary.save_directory(
+        "/Game/PixelMaze",
+        only_if_is_dirty=False,
+        recursive=True,
+    )
+    unreal.log(
+        f"Pixel Maze: asset setup complete "
+        f"({', '.join(created) or 'assets already existed'})."
+    )
     return created
 
 

@@ -11,6 +11,7 @@
 #include "Components/VerticalBox.h"
 #include "Components/VerticalBoxSlot.h"
 #include "Kismet/KismetSystemLibrary.h"
+#include "PMECharacterCustomizationWidget.h"
 #include "PMEGameInstance.h"
 #include "PMELocalizationLibrary.h"
 
@@ -91,6 +92,9 @@ void UPMEMainMenuWidget::ShowMainMenu()
 
 	UButton* MultiplayerButton = AddButton(UPMELocalizationLibrary::GetText(TEXT("Menu.Multiplayer")));
 	MultiplayerButton->OnClicked.AddDynamic(this, &UPMEMainMenuWidget::HandleMultiplayer);
+
+	UButton* CustomizationButton = AddButton(UPMELocalizationLibrary::GetText(TEXT("Menu.Customization")));
+	CustomizationButton->OnClicked.AddDynamic(this, &UPMEMainMenuWidget::HandleCustomization);
 
 	UButton* QuitButton = AddButton(UPMELocalizationLibrary::GetText(TEXT("Menu.Quit")));
 	QuitButton->OnClicked.AddDynamic(this, &UPMEMainMenuWidget::HandleQuit);
@@ -211,10 +215,10 @@ UTextBlock* UPMEMainMenuWidget::AddText(const FText& Text, const int32 FontSize,
 	FontInfo.Size = FontSize;
 	TextBlock->SetFont(FontInfo);
 
-	if (UVerticalBoxSlot* VSlot = MenuBox->AddChildToVerticalBox(TextBlock))
+	if (UVerticalBoxSlot* vSlot = MenuBox->AddChildToVerticalBox(TextBlock))
 	{
-		VSlot->SetHorizontalAlignment(HAlign_Fill);
-		VSlot->SetPadding(FMargin(4.0f));
+		vSlot->SetHorizontalAlignment(HAlign_Fill);
+		vSlot->SetPadding(FMargin(4.0f));
 	}
 
 	return TextBlock;
@@ -234,10 +238,10 @@ UButton* UPMEMainMenuWidget::AddButton(const FText& Label)
 	LabelText->SetFont(FontInfo);
 	Button->SetContent(LabelText);
 
-	if (UVerticalBoxSlot* VSlot = MenuBox->AddChildToVerticalBox(Button))
+	if (UVerticalBoxSlot* vSlot = MenuBox->AddChildToVerticalBox(Button))
 	{
-		VSlot->SetHorizontalAlignment(HAlign_Fill);
-		VSlot->SetPadding(FMargin(0.0f, 7.0f));
+		vSlot->SetHorizontalAlignment(HAlign_Fill);
+		vSlot->SetPadding(FMargin(0.0f, 7.0f));
 	}
 
 	return Button;
@@ -278,6 +282,38 @@ void UPMEMainMenuWidget::HandleMultiplayer()
 void UPMEMainMenuWidget::HandleQuit()
 {
 	UKismetSystemLibrary::QuitGame(this, GetOwningPlayer(), EQuitPreference::Quit, false);
+}
+
+void UPMEMainMenuWidget::HandleCustomization()
+{
+	if (!CustomizationWidgetClass)
+	{
+		CustomizationWidgetClass = UPMECharacterCustomizationWidget::StaticClass();
+	}
+
+	if (!CustomizationWidget && CustomizationWidgetClass)
+	{
+		CustomizationWidget = CreateWidget<UPMECharacterCustomizationWidget>(
+			GetOwningPlayer(),
+			CustomizationWidgetClass);
+	}
+
+	if (CustomizationWidget)
+	{
+		CustomizationWidget->OnCustomizationClosed.RemoveAll(this);
+		CustomizationWidget->OnCustomizationClosed.AddDynamic(
+			this,
+			&UPMEMainMenuWidget::HandleCustomizationClosed);
+		SetVisibility(ESlateVisibility::Collapsed);
+		CustomizationWidget->AddToViewport(200);
+	}
+}
+
+void UPMEMainMenuWidget::HandleCustomizationClosed()
+{
+	CustomizationWidget = nullptr;
+	SetVisibility(ESlateVisibility::Visible);
+	ShowMainMenu();
 }
 
 void UPMEMainMenuWidget::HandleCoop()

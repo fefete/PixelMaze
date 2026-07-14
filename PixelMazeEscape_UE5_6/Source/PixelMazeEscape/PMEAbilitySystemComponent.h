@@ -7,8 +7,8 @@
 UCLASS(ClassGroup=(PixelMaze), meta=(BlueprintSpawnableComponent))
 class PIXELMAZEESCAPE_API UPMEAbilitySystemComponent : public UAbilitySystemComponent
 {
-    GENERATED_BODY()
+	GENERATED_BODY()
 
 public:
-    UPMEAbilitySystemComponent();
+	UPMEAbilitySystemComponent();
 };

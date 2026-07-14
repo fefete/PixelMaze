@@ -10,6 +10,8 @@
 namespace PixelMazeTravel
 {
 	static const FName EmptyMap(TEXT("/Engine/Maps/Entry"));
+	static const FName MenuMap(TEXT("/Game/Maps/MainMenu"));
+	static const FName GameplayMap(TEXT("/Game/Maps/GameplayMap"));
 	static const TCHAR* GameplayGameMode = TEXT("/Script/PixelMazeEscape.PMEGameModeBase");
 	static const TCHAR* MenuGameMode = TEXT("/Script/PixelMazeEscape.PMEMainMenuGameMode");
 }
@@ -119,7 +121,7 @@ void UPMEGameInstance::ReturnToMainMenu()
 		{
 			const FString TravelURL = FString::Printf(
 				TEXT("%s?%s"),
-				*PixelMazeTravel::EmptyMap.ToString(),
+				*PixelMazeTravel::MenuMap.ToString(),
 				*Options);
 			PlayerController->ClientTravel(TravelURL, ETravelType::TRAVEL_Absolute);
 		}
@@ -162,7 +164,7 @@ void UPMEGameInstance::OpenGameplayMap(const EPMEPlayMode Mode, const bool bList
 		Options += TEXT("?listen");
 	}
 
-	UGameplayStatics::OpenLevel(this, PixelMazeTravel::EmptyMap, true, Options);
+	UGameplayStatics::OpenLevel(this, PixelMazeTravel::GameplayMap, true, Options);
 }
 
 void UPMEGameInstance::HandleNetworkFailure(

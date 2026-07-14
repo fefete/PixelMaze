@@ -150,11 +150,12 @@ TArray<FIntPoint> APMEObjectManager::BuildCandidateCells() const
 			if (!Maze->IsWalkable(X, Y)) continue;
 			const FIntPoint C(X, Y);
 			bool bSafe = true;
-			for (const FIntPoint& P : Protected) if (FMath::Abs(C.X - P.X) + FMath::Abs(C.Y - P.Y) < 3)
-			{
-				bSafe = false;
-				break;
-			}
+			for (const FIntPoint& P : Protected)
+				if (FMath::Abs(C.X - P.X) + FMath::Abs(C.Y - P.Y) < 3)
+				{
+					bSafe = false;
+					break;
+				}
 			if (bSafe) Result.Add(C);
 		}
 	return Result;
@@ -289,6 +290,7 @@ bool APMEObjectManager::AreAllRequiredObjectivesComplete() const
 void APMEObjectManager::RefreshReplicatedProgress()
 {
 	ForceNetUpdate();
-	if (APMEGameState* GS = GetWorld() ? GetWorld()->GetGameState<APMEGameState>() : nullptr) GS->SetObjectiveProgress(
-		SharedActivated, SharedRequired, Player1Activated, Player1Required, Player2Activated, Player2Required);
+	if (APMEGameState* GS = GetWorld() ? GetWorld()->GetGameState<APMEGameState>() : nullptr)
+		GS->SetObjectiveProgress(
+			SharedActivated, SharedRequired, Player1Activated, Player1Required, Player2Activated, Player2Required);
 }

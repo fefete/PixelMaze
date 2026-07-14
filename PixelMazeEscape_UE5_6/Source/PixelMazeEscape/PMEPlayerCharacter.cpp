@@ -8,6 +8,7 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "Materials/MaterialInterface.h"
+#include "PMECharacterCustomizationSubsystem.h"
 #include "Net/UnrealNetwork.h"
 #include "PMEAttributeSet.h"
 #include "PMEGameModeBase.h"
@@ -26,8 +27,9 @@ APMEPlayerCharacter::APMEPlayerCharacter()
 {
 	PrimaryActorTick.bCanEverTick = true;
 	bReplicates = true;
-	SetNetUpdateFrequency(60.0f);
-	SetMinNetUpdateFrequency(20.0f);
+	SetReplicateMovement(true);
+	NetUpdateFrequency = 60.0f;
+	MinNetUpdateFrequency = 20.0f;
 
 	GetCapsuleComponent()->InitCapsuleSize(30.0f, 45.0f);
 	GetCapsuleComponent()->SetCollisionResponseToChannel(ECC_Pawn, ECR_Ignore);
@@ -75,7 +77,6 @@ void APMEPlayerCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& 
 void APMEPlayerCharacter::BeginPlay()
 {
 	Super::BeginPlay();
-	SetReplicateMovement(true);
 	GetCharacterMovement()->MaxWalkSpeed = MovementSpeed;
 	TopDownCamera->SetRelativeLocation(FVector(0, 0, CameraHeight));
 	TopDownCamera->OrthoWidth = OrthographicWidth;
@@ -86,7 +87,6 @@ void APMEPlayerCharacter::BeginPlay()
 	InitializeAbilitySystem();
 	LastStepSampleLocation = GetActorLocation();
 	LastServerMovementSample = GetActorLocation();
-
 }
 
 void APMEPlayerCharacter::Tick(const float DeltaSeconds)
@@ -297,13 +297,31 @@ void APMEPlayerCharacter::RefreshPlayerVisual() { ApplyPlayerVisual(); }
 
 void APMEPlayerCharacter::ApplyPlayerVisual()
 {
-	const APMEPlayerState* PS = GetPlayerState<APMEPlayerState>();
-	const bool bP2 = PS && PS->GetPlayerIndex() == 2;
-	const TCHAR* Path = bP2
-		                    ? TEXT("/Game/PixelMaze/Materials/M_Player2.M_Player2")
-		                    : TEXT("/Game/PixelMaze/Materials/M_Player.M_Player");
-	if (UMaterialInterface* Material = LoadObject<UMaterialInterface>(nullptr, Path)) PixelBody->
-		SetMaterial(0, Material);
+	const APMEPlayerState* PS =
+		GetPlayerState<APMEPlayerState>();
+
+	const FName CharacterId = PS
+		                          ? PS->GetSelectedCharacterId()
+		                          : FName(TEXT("Character.01"));
+
+	const FSoftObjectPath MaterialPath =
+		UPMECharacterCustomizationSubsystem::
+		GetCharacterMaterialPath(CharacterId);
+
+	if (UMaterialInterface* Material =
+		Cast<UMaterialInterface>(MaterialPath.TryLoad()))
+	{
+		PixelBody->SetMaterial(0, Material);
+	}
+	else if (UMaterialInterface* Fallback =
+		LoadObject<UMaterialInterface>(
+			nullptr,
+			TEXT("/Game/PixelMaze/Materials/"
+				"M_Player.M_Player")))
+	{
+		PixelBody->SetMaterial(0, Fallback);
+	}
+
 	ApplyPixelBodyFacing();
 }
 

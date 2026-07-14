@@ -31,6 +31,14 @@ public:
 	void ClientShowUpgradeChoices(const TArray<EPMEUpgradeType>& Choices);
 	UFUNCTION(Client, Reliable)
 	void ClientHideUpgradeChoices();
+	UFUNCTION(Client, Reliable)
+	void ClientNotifyMapStarted();
+	UFUNCTION(Client, Reliable)
+	void ClientNotifyItemUsed(EPMEPickupType ItemType);
+	UFUNCTION(Client, Reliable)
+	void ClientNotifyMapCompleted();
+	UFUNCTION(Client, Reliable)
+	void ClientNotifyRunCompleted(EPMEPlayMode PlayMode);
 	void SubmitUpgradeChoice(EPMEUpgradeType Choice);
 
 protected:
@@ -60,6 +68,7 @@ protected:
 
 private:
 	void SpawnLocalFog();
+	void SubmitLocalCharacterSelection();
 	void RequestRestartMaze();
 	void ReturnToMenu();
 	void ResolveAudioAssets();
@@ -70,12 +79,15 @@ private:
 	UFUNCTION(Server, Reliable)
 	void ServerRequestRestartMaze();
 	UFUNCTION(Server, Reliable)
+	void ServerSetSelectedCharacter(FName CharacterId);
+	UFUNCTION(Server, Reliable)
 	void ServerChooseUpgrade(EPMEUpgradeType Choice);
 	UPROPERTY()
 	TObjectPtr<APMEFogOfWarActor> LocalFogActor;
 	UPROPERTY()
 	TObjectPtr<UPMEUpgradeSelectionWidget> UpgradeWidget;
 	FTimerHandle MapPulseTimer;
+	FTimerHandle CharacterSelectionRetryTimer;
 	bool bMapPulseActive = false;
 	bool bHasObservedRoundState = false;
 	bool bWasRoundFinished = false;

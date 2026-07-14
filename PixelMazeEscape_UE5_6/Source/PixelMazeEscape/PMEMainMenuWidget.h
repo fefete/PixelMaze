@@ -9,6 +9,7 @@ class UButton;
 class UEditableTextBox;
 class UTextBlock;
 class UVerticalBox;
+class UPMECharacterCustomizationWidget;
 class SWidget;
 
 enum class EPMEMenuScreen : uint8
@@ -50,6 +51,12 @@ private:
 	void HandleQuit();
 
 	UFUNCTION()
+	void HandleCustomization();
+
+	UFUNCTION()
+	void HandleCustomizationClosed();
+
+	UFUNCTION()
 	void HandleCoop();
 
 	UFUNCTION()
@@ -87,6 +94,12 @@ private:
 
 	UPROPERTY()
 	TObjectPtr<UTextBlock> StatusText;
+
+	UPROPERTY(EditDefaultsOnly, Category="Pixel Maze|Customization")
+	TSubclassOf<UPMECharacterCustomizationWidget> CustomizationWidgetClass;
+
+	UPROPERTY()
+	TObjectPtr<UPMECharacterCustomizationWidget> CustomizationWidget;
 
 	EPMEPlayMode SelectedMultiplayerMode = EPMEPlayMode::Coop;
 	EPMEMenuScreen CurrentScreen = EPMEMenuScreen::Main;

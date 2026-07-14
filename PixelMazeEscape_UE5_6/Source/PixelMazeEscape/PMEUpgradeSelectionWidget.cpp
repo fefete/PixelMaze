@@ -91,8 +91,9 @@ void UPMEUpgradeSelectionWidget::RefreshText()
 void UPMEUpgradeSelectionWidget::SubmitChoice(int32 Index)
 {
 	if (!Choices.IsValidIndex(Index))return;
-	if (APMEPlayerController* PC = Cast<APMEPlayerController>(GetOwningPlayer()))PC->
-		SubmitUpgradeChoice(Choices[Index]);
+	if (APMEPlayerController* PC = Cast<APMEPlayerController>(GetOwningPlayer()))
+		PC->
+			SubmitUpgradeChoice(Choices[Index]);
 }
 
 void UPMEUpgradeSelectionWidget::Choose0() { SubmitChoice(0); }

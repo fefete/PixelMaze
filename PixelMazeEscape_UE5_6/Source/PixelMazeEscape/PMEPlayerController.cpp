@@ -5,6 +5,7 @@
 #include "Engine/World.h"
 #include "Kismet/GameplayStatics.h"
 #include "PMEAttributeSet.h"
+#include "PMECharacterCustomizationSubsystem.h"
 #include "PMEFogOfWarActor.h"
 #include "PMEGameInstance.h"
 #include "PMEGameModeBase.h"
@@ -37,18 +38,26 @@ APMEPlayerController::APMEPlayerController()
 void APMEPlayerController::BeginPlay()
 {
 	Super::BeginPlay();
+
 	bShowMouseCursor = false;
 	SetInputMode(FInputModeGameOnly());
+
+	ResolveAudioAssets();
+	if (MazeAmbientComponent && MazeAmbientMusic)
+	{
+		MazeAmbientComponent->SetSound(MazeAmbientMusic);
+		MazeAmbientComponent->SetVolumeMultiplier(
+			MazeAmbientVolume);
+		MazeAmbientComponent->Play();
+	}
+
 	if (IsLocalController())
 	{
-		ResolveAudioAssets();
-		if (MazeAmbientComponent && MazeAmbientMusic)
-		{
-			MazeAmbientComponent->SetSound(MazeAmbientMusic);
-			MazeAmbientComponent->SetVolumeMultiplier(MazeAmbientVolume);
-			MazeAmbientComponent->Play();
-		}
-		GetWorldTimerManager().SetTimerForNextTick(this, &APMEPlayerController::SpawnLocalFog);
+		SpawnLocalFog();
+		GetWorldTimerManager().SetTimerForNextTick(
+			this,
+			&APMEPlayerController::
+			SubmitLocalCharacterSelection);
 	}
 }
 
@@ -75,7 +84,131 @@ void APMEPlayerController::SetupInputComponent()
 void APMEPlayerController::OnPossess(APawn* InPawn)
 {
 	Super::OnPossess(InPawn);
-	if (IsLocalController() && LocalFogActor)LocalFogActor->SetTrackedPawn(InPawn);
+
+	if (!IsLocalController())
+	{
+		return;
+	}
+
+	if (LocalFogActor)
+	{
+		LocalFogActor->SetTrackedPawn(InPawn);
+	}
+
+	SubmitLocalCharacterSelection();
+}
+
+void APMEPlayerController::SubmitLocalCharacterSelection()
+{
+	if (!IsLocalController())
+	{
+		return;
+	}
+
+	APMEPlayerState* MazePlayerState =
+		GetPlayerState<APMEPlayerState>();
+	UPMECharacterCustomizationSubsystem* Customization =
+		GetGameInstance()->GetSubsystem<
+			UPMECharacterCustomizationSubsystem>();
+
+	if (!MazePlayerState || !Customization)
+	{
+		GetWorldTimerManager().SetTimer(
+			CharacterSelectionRetryTimer,
+			this,
+			&APMEPlayerController::
+			SubmitLocalCharacterSelection,
+			0.20f,
+			false);
+		return;
+	}
+
+	GetWorldTimerManager().ClearTimer(
+		CharacterSelectionRetryTimer);
+
+	const FName CharacterId =
+		Customization->GetSelectedCharacterId();
+
+	if (HasAuthority())
+	{
+		MazePlayerState->SetSelectedCharacterId(CharacterId);
+	}
+	else
+	{
+		ServerSetSelectedCharacter(CharacterId);
+	}
+}
+
+void APMEPlayerController::ServerSetSelectedCharacter_Implementation(
+	const FName CharacterId)
+{
+	if (APMEPlayerState* MazePlayerState =
+		GetPlayerState<APMEPlayerState>())
+	{
+		MazePlayerState->SetSelectedCharacterId(CharacterId);
+	}
+}
+
+void APMEPlayerController::ClientNotifyMapStarted_Implementation()
+{
+	if (!IsLocalController())
+	{
+		return;
+	}
+
+	if (UPMECharacterCustomizationSubsystem* Customization =
+		GetGameInstance()->GetSubsystem<
+			UPMECharacterCustomizationSubsystem>())
+	{
+		Customization->NotifyMapStarted();
+	}
+}
+
+void APMEPlayerController::ClientNotifyItemUsed_Implementation(
+	const EPMEPickupType ItemType)
+{
+	if (!IsLocalController())
+	{
+		return;
+	}
+
+	if (UPMECharacterCustomizationSubsystem* Customization =
+		GetGameInstance()->GetSubsystem<
+			UPMECharacterCustomizationSubsystem>())
+	{
+		Customization->NotifyItemUsed(ItemType);
+	}
+}
+
+void APMEPlayerController::ClientNotifyMapCompleted_Implementation()
+{
+	if (!IsLocalController())
+	{
+		return;
+	}
+
+	if (UPMECharacterCustomizationSubsystem* Customization =
+		GetGameInstance()->GetSubsystem<
+			UPMECharacterCustomizationSubsystem>())
+	{
+		Customization->NotifyMapCompleted();
+	}
+}
+
+void APMEPlayerController::ClientNotifyRunCompleted_Implementation(
+	const EPMEPlayMode PlayMode)
+{
+	if (!IsLocalController())
+	{
+		return;
+	}
+
+	if (UPMECharacterCustomizationSubsystem* Customization =
+		GetGameInstance()->GetSubsystem<
+			UPMECharacterCustomizationSubsystem>())
+	{
+		Customization->NotifyRunCompleted(PlayMode);
+	}
 }
 
 void APMEPlayerController::SetFogRevealRadius(float NewRadius)
@@ -153,8 +286,9 @@ void APMEPlayerController::SubmitUpgradeChoice(EPMEUpgradeType Choice)
 
 void APMEPlayerController::ServerChooseUpgrade_Implementation(EPMEUpgradeType Choice)
 {
-	if (APMEGameModeBase* GM = GetWorld()->GetAuthGameMode<APMEGameModeBase>())GM->HandleUpgradeSelected(
-		GetPlayerState<APMEPlayerState>(), Choice);
+	if (APMEGameModeBase* GM = GetWorld()->GetAuthGameMode<APMEGameModeBase>())
+		GM->HandleUpgradeSelected(
+			GetPlayerState<APMEPlayerState>(), Choice);
 }
 
 void APMEPlayerController::SpawnLocalFog()
@@ -185,8 +319,10 @@ void APMEPlayerController::RequestRestartMaze()
 
 void APMEPlayerController::ServerRequestRestartMaze_Implementation()
 {
-	if (APMEGameModeBase* GM = GetWorld()->GetAuthGameMode<APMEGameModeBase>())if (GM->GetPlayMode() ==
-		EPMEPlayMode::SinglePlayer || IsLocalController())GM->RestartCurrentMaze();
+	if (APMEGameModeBase* GM = GetWorld()->GetAuthGameMode<APMEGameModeBase>())
+		if (GM->GetPlayMode() ==
+			EPMEPlayMode::SinglePlayer || IsLocalController())
+			GM->RestartCurrentMaze();
 }
 
 void APMEPlayerController::ReturnToMenu()
@@ -199,8 +335,9 @@ void APMEPlayerController::ResolveAudioAssets()
 	if (!MazeAmbientMusic)MazeAmbientMusic = LoadObject<USoundBase>(nullptr, PixelMazeGameplayAudio::MazeAmbientPath);
 	if (!VictorySound)VictorySound = LoadObject<USoundBase>(nullptr, PixelMazeGameplayAudio::VictoryPath);
 	if (!DefeatSound)DefeatSound = LoadObject<USoundBase>(nullptr, PixelMazeGameplayAudio::DefeatPath);
-	if (!EnemyHitPlayerSound)EnemyHitPlayerSound = LoadObject<USoundBase>(
-		nullptr, PixelMazeGameplayAudio::EnemyHitPlayerPath);
+	if (!EnemyHitPlayerSound)
+		EnemyHitPlayerSound = LoadObject<USoundBase>(
+			nullptr, PixelMazeGameplayAudio::EnemyHitPlayerPath);
 }
 
 void APMEPlayerController::UpdateRoundResultAudio()

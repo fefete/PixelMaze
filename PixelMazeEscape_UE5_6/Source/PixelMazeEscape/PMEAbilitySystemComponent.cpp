@@ -2,6 +2,6 @@
 
 UPMEAbilitySystemComponent::UPMEAbilitySystemComponent()
 {
-    SetIsReplicatedByDefault(true);
-    SetReplicationMode(EGameplayEffectReplicationMode::Mixed);
+	SetIsReplicatedByDefault(true);
+	SetReplicationMode(EGameplayEffectReplicationMode::Mixed);
 }

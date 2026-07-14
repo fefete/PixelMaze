@@ -1,0 +1,52 @@
+{
+  "Character_01": {
+    "file": "Characters/character_01.png",
+    "display_name": "Amber Explorer",
+    "unlocked_by_default": true
+  },
+  "Character_02": {
+    "file": "Characters/character_02.png",
+    "display_name": "Moss Scout",
+    "unlocked_by_default": true
+  },
+  "Character_03": {
+    "file": "Characters/character_03.png",
+    "display_name": "Violet Mage",
+    "unlocked_by_default": true
+  },
+  "Character_04": {
+    "file": "Characters/character_04.png",
+    "display_name": "Cyan Mechanic",
+    "unlocked_by_default": true
+  },
+  "Character_05": {
+    "file": "Characters/character_05.png",
+    "display_name": "Crimson Rogue",
+    "unlocked_by_default": true
+  },
+  "Character_06": {
+    "file": "Characters/character_06.png",
+    "display_name": "Silver Knight",
+    "unlocked_by_default": false
+  },
+  "Character_07": {
+    "file": "Characters/character_07.png",
+    "display_name": "Golden Bomber",
+    "unlocked_by_default": false
+  },
+  "Character_08": {
+    "file": "Characters/character_08.png",
+    "display_name": "Azure Seer",
+    "unlocked_by_default": false
+  },
+  "Character_09": {
+    "file": "Characters/character_09.png",
+    "display_name": "Night Wanderer",
+    "unlocked_by_default": false
+  },
+  "Character_10": {
+    "file": "Characters/character_10.png",
+    "display_name": "Orange Trickster",
+    "unlocked_by_default": false
+  }
+}
