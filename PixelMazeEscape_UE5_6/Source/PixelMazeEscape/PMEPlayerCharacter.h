@@ -20,6 +20,7 @@ public:
 	APMEPlayerCharacter();
 
 	virtual void Tick(float DeltaSeconds) override;
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 	virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
 	virtual void PossessedBy(AController* NewController) override;
 	virtual void OnRep_PlayerState() override;
@@ -41,6 +42,14 @@ protected:
 	TObjectPtr<UCameraComponent> TopDownCamera;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Pixel Art")
 	TObjectPtr<UStaticMeshComponent> PixelBody;
+
+	/** World-up orientation used by the top-down pixel body. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Pixel Maze|Player|Visual")
+	FRotator PixelBodyUprightRotation = FRotator::ZeroRotator;
+
+	/** Mirrors the pixel body on world Y when the player moves left. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Pixel Maze|Player|Visual")
+	bool bMirrorPixelBodyWhenMovingLeft = true;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Movement", meta=(ClampMin="100.0"))
 	float MovementSpeed = 500.0f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Camera", meta=(ClampMin="400.0"))
@@ -72,7 +81,12 @@ private:
 	void UseItem1();
 	void UseItem2();
 	void InteractPressed();
+	UFUNCTION()
+	void OnRep_FacingRight();
+
 	void ApplyPlayerVisual();
+	void ApplyPixelBodyFacing();
+	void UpdatePixelBodyFacing(const FVector& MovementDirection);
 	void ResolveAudioAssets();
 	void UpdateFootstepAudio();
 	void InitializeAbilitySystem();
@@ -81,6 +95,10 @@ private:
 
 	UFUNCTION(Server, Reliable)
 	void ServerUseInventorySlot(int32 SlotIndex);
+
+	/** True means the pixel body uses its normal horizontal orientation. */
+	UPROPERTY(ReplicatedUsing=OnRep_FacingRight)
+	bool bFacingRight = true;
 
 	FVector LastStepSampleLocation = FVector::ZeroVector;
 	float AccumulatedStepDistance = 0.0f;

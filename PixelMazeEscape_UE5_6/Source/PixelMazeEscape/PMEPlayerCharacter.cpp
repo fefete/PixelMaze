@@ -8,6 +8,7 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "Materials/MaterialInterface.h"
+#include "Net/UnrealNetwork.h"
 #include "PMEAttributeSet.h"
 #include "PMEGameModeBase.h"
 #include "PMEGameplayAbilities.h"
@@ -45,6 +46,8 @@ APMEPlayerCharacter::APMEPlayerCharacter()
 	PixelBody->SetupAttachment(GetCapsuleComponent());
 	PixelBody->SetRelativeLocation(FVector(0.0f, 0.0f, -2.0f));
 	PixelBody->SetRelativeScale3D(FVector(0.48f, 0.48f, 0.72f));
+	PixelBody->SetAbsolute(false, true, true);
+	PixelBody->SetWorldRotation(FRotator::ZeroRotator);
 	PixelBody->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	PixelBody->SetCastShadow(false);
 
@@ -60,6 +63,15 @@ APMEPlayerCharacter::APMEPlayerCharacter()
 	TopDownCamera->bUsePawnControlRotation = false;
 }
 
+void APMEPlayerCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+
+	// The owning client updates facing immediately from its local input. The
+	// server replicates the result to every other client.
+	DOREPLIFETIME_CONDITION(APMEPlayerCharacter, bFacingRight, COND_SkipOwner);
+}
+
 void APMEPlayerCharacter::BeginPlay()
 {
 	Super::BeginPlay();
@@ -67,16 +79,31 @@ void APMEPlayerCharacter::BeginPlay()
 	GetCharacterMovement()->MaxWalkSpeed = MovementSpeed;
 	TopDownCamera->SetRelativeLocation(FVector(0, 0, CameraHeight));
 	TopDownCamera->OrthoWidth = OrthographicWidth;
+	SetActorRotation(FRotator::ZeroRotator);
 	ApplyPlayerVisual();
+	ApplyPixelBodyFacing();
 	ResolveAudioAssets();
 	InitializeAbilitySystem();
 	LastStepSampleLocation = GetActorLocation();
 	LastServerMovementSample = GetActorLocation();
+
 }
 
 void APMEPlayerCharacter::Tick(const float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
+
+	// Collision and network movement never rotate the actor artwork. Facing is
+	// represented exclusively by horizontally mirroring PixelBody.
+	SetActorRotation(FRotator::ZeroRotator);
+
+	// The server derives facing from authoritative velocity. The owning client
+	// also updates instantly from MoveRight for responsive local feedback.
+	if (HasAuthority())
+	{
+		UpdatePixelBodyFacing(GetVelocity());
+	}
+
 	if (IsLocallyControlled()) UpdateFootstepAudio();
 	UpdateAttributesAndNoise(DeltaSeconds);
 }
@@ -85,7 +112,9 @@ void APMEPlayerCharacter::PossessedBy(AController* NewController)
 {
 	Super::PossessedBy(NewController);
 	InitializeAbilitySystem();
+	SetActorRotation(FRotator::ZeroRotator);
 	ApplyPlayerVisual();
+	ApplyPixelBodyFacing();
 	LastStepSampleLocation = GetActorLocation();
 	LastServerMovementSample = GetActorLocation();
 	AccumulatedStepDistance = 0.0f;
@@ -96,7 +125,9 @@ void APMEPlayerCharacter::OnRep_PlayerState()
 {
 	Super::OnRep_PlayerState();
 	InitializeAbilitySystem();
+	SetActorRotation(FRotator::ZeroRotator);
 	ApplyPlayerVisual();
+	ApplyPixelBodyFacing();
 }
 
 UAbilitySystemComponent* APMEPlayerCharacter::GetAbilitySystemComponent() const
@@ -129,12 +160,21 @@ void APMEPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInput
 
 void APMEPlayerCharacter::MoveForward(const float Value)
 {
-	if (!IsDowned() && !FMath::IsNearlyZero(Value)) AddMovementInput(FVector::ForwardVector, Value);
+	if (!IsDowned() && !FMath::IsNearlyZero(Value))
+	{
+		AddMovementInput(FVector::ForwardVector, Value);
+		// Vertical movement preserves the last horizontal facing.
+		ApplyPixelBodyFacing();
+	}
 }
 
 void APMEPlayerCharacter::MoveRight(const float Value)
 {
-	if (!IsDowned() && !FMath::IsNearlyZero(Value)) AddMovementInput(FVector::RightVector, Value);
+	if (!IsDowned() && !FMath::IsNearlyZero(Value))
+	{
+		AddMovementInput(FVector::RightVector, Value);
+		UpdatePixelBodyFacing(FVector::RightVector * Value);
+	}
 }
 
 void APMEPlayerCharacter::SprintPressed()
@@ -247,7 +287,10 @@ void APMEPlayerCharacter::ApplyDownedState(const bool bDowned)
 {
 	GetCharacterMovement()->DisableMovement();
 	if (!bDowned) GetCharacterMovement()->SetMovementMode(MOVE_Walking);
-	PixelBody->SetRelativeRotation(bDowned ? FRotator(0, 0, 90) : FRotator::ZeroRotator);
+
+	// Keep the pixel artwork upright even while downed. A separate material or
+	// animation can be used later to represent the downed state.
+	ApplyPixelBodyFacing();
 }
 
 void APMEPlayerCharacter::RefreshPlayerVisual() { ApplyPlayerVisual(); }
@@ -261,6 +304,61 @@ void APMEPlayerCharacter::ApplyPlayerVisual()
 		                    : TEXT("/Game/PixelMaze/Materials/M_Player.M_Player");
 	if (UMaterialInterface* Material = LoadObject<UMaterialInterface>(nullptr, Path)) PixelBody->
 		SetMaterial(0, Material);
+	ApplyPixelBodyFacing();
+}
+
+void APMEPlayerCharacter::OnRep_FacingRight()
+{
+	ApplyPixelBodyFacing();
+}
+
+void APMEPlayerCharacter::ApplyPixelBodyFacing()
+{
+	if (!PixelBody)
+	{
+		return;
+	}
+
+	// With the project's top-down camera, world +Y is screen-right. Keep the
+	// artwork's world rotation fixed and mirror only its Y scale.
+	PixelBody->SetAbsolute(false, true, true);
+	PixelBody->SetWorldRotation(PixelBodyUprightRotation);
+
+	FVector VisualScale = PixelBody->GetComponentScale().GetAbs();
+	if (VisualScale.IsNearlyZero())
+	{
+		VisualScale = FVector(0.48f, 0.48f, 0.72f);
+	}
+
+	if (bMirrorPixelBodyWhenMovingLeft && !bFacingRight)
+	{
+		VisualScale.Y *= -1.0f;
+	}
+
+	PixelBody->SetWorldScale3D(VisualScale);
+}
+
+void APMEPlayerCharacter::UpdatePixelBodyFacing(const FVector& MovementDirection)
+{
+	// Forward/backward movement must not rotate or flip the artwork. Preserve
+	// the most recent left/right orientation until horizontal movement resumes.
+	if (FMath::IsNearlyZero(MovementDirection.Y, 0.01f))
+	{
+		ApplyPixelBodyFacing();
+		return;
+	}
+
+	const bool bNewFacingRight = MovementDirection.Y > 0.0f;
+	if (bFacingRight != bNewFacingRight)
+	{
+		bFacingRight = bNewFacingRight;
+		if (HasAuthority())
+		{
+			ForceNetUpdate();
+		}
+	}
+
+	ApplyPixelBodyFacing();
 }
 
 void APMEPlayerCharacter::ResolveAudioAssets()
