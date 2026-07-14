@@ -60,20 +60,27 @@ void APMEPlayerState::GrantDefaultAbilities()
 	if (!HasAuthority() || bAbilitiesGranted || !AbilitySystemComponent) return;
 	bAbilitiesGranted = true;
 
-	if (SprintAbilityClass) AbilitySystemComponent->GiveAbility(
-		FGameplayAbilitySpec(SprintAbilityClass, 1, static_cast<int32>(EPMEAbilityInputID::Sprint), this));
-	if (ReviveAbilityClass) AbilitySystemComponent->GiveAbility(
-		FGameplayAbilitySpec(ReviveAbilityClass, 1, static_cast<int32>(EPMEAbilityInputID::Revive), this));
-	if (TorchAbilityClass) AbilitySystemComponent->GiveAbility(
-		FGameplayAbilitySpec(TorchAbilityClass, 1, INDEX_NONE, this));
-	if (MapPulseAbilityClass) AbilitySystemComponent->GiveAbility(
-		FGameplayAbilitySpec(MapPulseAbilityClass, 1, INDEX_NONE, this));
-	if (DecoyAbilityClass) AbilitySystemComponent->GiveAbility(
-		FGameplayAbilitySpec(DecoyAbilityClass, 1, INDEX_NONE, this));
-	if (LightBombAbilityClass) AbilitySystemComponent->GiveAbility(
-		FGameplayAbilitySpec(LightBombAbilityClass, 1, INDEX_NONE, this));
-	if (MasterKeyAbilityClass) AbilitySystemComponent->GiveAbility(
-		FGameplayAbilitySpec(MasterKeyAbilityClass, 1, INDEX_NONE, this));
+	if (SprintAbilityClass)
+		AbilitySystemComponent->GiveAbility(
+			FGameplayAbilitySpec(SprintAbilityClass, 1, static_cast<int32>(EPMEAbilityInputID::Sprint), this));
+	if (ReviveAbilityClass)
+		AbilitySystemComponent->GiveAbility(
+			FGameplayAbilitySpec(ReviveAbilityClass, 1, static_cast<int32>(EPMEAbilityInputID::Revive), this));
+	if (TorchAbilityClass)
+		AbilitySystemComponent->GiveAbility(
+			FGameplayAbilitySpec(TorchAbilityClass, 1, INDEX_NONE, this));
+	if (MapPulseAbilityClass)
+		AbilitySystemComponent->GiveAbility(
+			FGameplayAbilitySpec(MapPulseAbilityClass, 1, INDEX_NONE, this));
+	if (DecoyAbilityClass)
+		AbilitySystemComponent->GiveAbility(
+			FGameplayAbilitySpec(DecoyAbilityClass, 1, INDEX_NONE, this));
+	if (LightBombAbilityClass)
+		AbilitySystemComponent->GiveAbility(
+			FGameplayAbilitySpec(LightBombAbilityClass, 1, INDEX_NONE, this));
+	if (MasterKeyAbilityClass)
+		AbilitySystemComponent->GiveAbility(
+			FGameplayAbilitySpec(MasterKeyAbilityClass, 1, INDEX_NONE, this));
 }
 
 void APMEPlayerState::AssignPlayerIndex(const int32 NewIndex)
@@ -133,8 +140,9 @@ void APMEPlayerState::MarkReachedExit(const float NewFinishTime)
 	check(HasAuthority());
 	bReachedExit = true;
 	FinishTime = FMath::Max(0.0f, NewFinishTime);
-	if (AbilitySystemComponent) AbilitySystemComponent->AddLooseGameplayTag(
-		FGameplayTag::RequestGameplayTag(TEXT("State.Player.AtExit")));
+	if (AbilitySystemComponent)
+		AbilitySystemComponent->AddLooseGameplayTag(
+			FGameplayTag::RequestGameplayTag(TEXT("State.Player.AtExit")));
 	ForceNetUpdate();
 }
 

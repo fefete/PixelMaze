@@ -1,6 +1,6 @@
 #include "PMEFogOfWarActor.h"
 
-#include "Components/HierarchicalInstancedStaticMeshComponent.h"
+#include "Components/InstancedStaticMeshComponent.h"
 #include "Components/SceneComponent.h"
 #include "Engine/StaticMesh.h"
 #include "Kismet/GameplayStatics.h"
@@ -8,17 +8,28 @@
 #include "PMEMazeGenerator.h"
 #include "UObject/ConstructorHelpers.h"
 
+namespace
+{
+	float SmoothStep01(const float Value)
+	{
+		const float T = FMath::Clamp(Value, 0.0f, 1.0f);
+		return T * T * (3.0f - 2.0f * T);
+	}
+}
+
 APMEFogOfWarActor::APMEFogOfWarActor()
 {
 	PrimaryActorTick.bCanEverTick = true;
+	PrimaryActorTick.TickGroup = TG_PostPhysics;
 	bReplicates = false;
 	SetActorEnableCollision(false);
 
 	SceneRoot = CreateDefaultSubobject<USceneComponent>(TEXT("SceneRoot"));
 	SetRootComponent(SceneRoot);
 
-	FogInstances = CreateDefaultSubobject<UHierarchicalInstancedStaticMeshComponent>(TEXT("FogInstances"));
+	FogInstances = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("FogInstances"));
 	FogInstances->SetupAttachment(SceneRoot);
+	FogInstances->SetMobility(EComponentMobility::Movable);
 	FogInstances->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	FogInstances->SetCanEverAffectNavigation(false);
 	FogInstances->SetCastShadow(false);
@@ -41,12 +52,17 @@ void APMEFogOfWarActor::BeginPlay()
 	}
 
 	ResolveMazeGenerator();
-	RefreshFogIfRequired(true);
+	RefreshFog(0.0f, true);
 }
 
 void APMEFogOfWarActor::Tick(const float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
+
+	if (!bFogEnabled || !TrackedPawn)
+	{
+		return;
+	}
 
 	AccumulatedTime += DeltaSeconds;
 	if (UpdateInterval > 0.0f && AccumulatedTime < UpdateInterval)
@@ -54,28 +70,30 @@ void APMEFogOfWarActor::Tick(const float DeltaSeconds)
 		return;
 	}
 
+	const float EvaluationDelta = AccumulatedTime;
 	AccumulatedTime = 0.0f;
-	RefreshFogIfRequired(false);
+	RefreshFog(EvaluationDelta, false);
 }
 
 void APMEFogOfWarActor::InitializeFog(APawn* InTrackedPawn, const float InRevealRadiusInTiles)
 {
 	TrackedPawn = InTrackedPawn;
 	RevealRadiusInTiles = FMath::Max(0.5f, InRevealRadiusInTiles);
-	RefreshFogIfRequired(true);
+	bHasRevealCenter = false;
+	RefreshFog(0.0f, true);
 }
 
 void APMEFogOfWarActor::SetTrackedPawn(APawn* InTrackedPawn)
 {
 	TrackedPawn = InTrackedPawn;
-	LastPawnCell = FIntPoint(-1, -1);
-	RefreshFogIfRequired(true);
+	bHasRevealCenter = false;
+	RefreshFog(0.0f, true);
 }
 
 void APMEFogOfWarActor::SetRevealRadiusInTiles(const float NewRadius)
 {
 	RevealRadiusInTiles = FMath::Clamp(NewRadius, 0.5f, 30.0f);
-	RefreshFogIfRequired(true);
+	RefreshFog(0.0f, false);
 }
 
 void APMEFogOfWarActor::SetFogEnabled(const bool bEnabled)
@@ -85,7 +103,8 @@ void APMEFogOfWarActor::SetFogEnabled(const bool bEnabled)
 
 	if (bFogEnabled)
 	{
-		RefreshFogIfRequired(true);
+		bHasRevealCenter = false;
+		RefreshFog(0.0f, true);
 	}
 }
 
@@ -98,7 +117,7 @@ void APMEFogOfWarActor::ResolveMazeGenerator()
 	}
 }
 
-void APMEFogOfWarActor::RefreshFogIfRequired(const bool bForce)
+void APMEFogOfWarActor::RefreshFog(const float DeltaSeconds, const bool bForce)
 {
 	if (!bFogEnabled || !TrackedPawn)
 	{
@@ -111,7 +130,6 @@ void APMEFogOfWarActor::RefreshFogIfRequired(const bool bForce)
 		return;
 	}
 
-	const FIntPoint PawnCell = MazeGenerator->WorldToGrid(TrackedPawn->GetActorLocation());
 	const int32 MazeSeed = MazeGenerator->GetActiveSeed();
 	const int32 GridWidth = MazeGenerator->GetGridWidth();
 	const int32 GridHeight = MazeGenerator->GetGridHeight();
@@ -124,11 +142,6 @@ void APMEFogOfWarActor::RefreshFogIfRequired(const bool bForce)
 
 	const bool bRadiusChanged = !FMath::IsNearlyEqual(RevealRadiusInTiles, LastAppliedRadius);
 
-	if (!bForce && !bMazeChanged && !bRadiusChanged && PawnCell == LastPawnCell)
-	{
-		return;
-	}
-
 	LastMazeSeed = MazeSeed;
 	LastGridWidth = GridWidth;
 	LastGridHeight = GridHeight;
@@ -136,22 +149,55 @@ void APMEFogOfWarActor::RefreshFogIfRequired(const bool bForce)
 	if (bMazeChanged)
 	{
 		BuildPersistentFogGrid();
+		bHasRevealCenter = false;
 	}
 
-	// Crucially, no ClearInstances() occurs while the player moves. Every maze
-	// tile owns a permanent instance and only changed transforms are submitted.
-	// Until the render thread receives the complete batch, the previous fog
-	// layout remains visible, so the maze can never flash fully uncovered.
-	UpdateFogVisibility(PawnCell, bMazeChanged || bRadiusChanged || bForce);
+	if (!bPersistentGridBuilt)
+	{
+		return;
+	}
 
-	LastPawnCell = PawnCell;
+	const FVector2D TargetRevealCenter = WorldToContinuousGrid(TrackedPawn->GetActorLocation());
+
+	if (!bHasRevealCenter || bForce || FogFollowInterpolationSpeed <= KINDA_SMALL_NUMBER)
+	{
+		SmoothedRevealCenter = TargetRevealCenter;
+		bHasRevealCenter = true;
+	}
+	else
+	{
+		SmoothedRevealCenter.X = FMath::FInterpTo(
+			SmoothedRevealCenter.X,
+			TargetRevealCenter.X,
+			DeltaSeconds,
+			FogFollowInterpolationSpeed);
+
+		SmoothedRevealCenter.Y = FMath::FInterpTo(
+			SmoothedRevealCenter.Y,
+			TargetRevealCenter.Y,
+			DeltaSeconds,
+			FogFollowInterpolationSpeed);
+	}
+
+	// Snap only when a new maze is built or when smoothing is explicitly
+	// disabled. Radius changes and normal movement transition progressively.
+	const bool bSnapAll = bMazeChanged || bForce || FogTileTransitionSpeed <= KINDA_SMALL_NUMBER;
+	UpdateFogVisibility(SmoothedRevealCenter, DeltaSeconds, bSnapAll);
+
 	LastAppliedRadius = RevealRadiusInTiles;
+
+	// Keep evaluating after a radius change even if the pawn is stationary;
+	// UpdateFogVisibility performs the interpolation until every tile settles.
+	if (bRadiusChanged && DeltaSeconds <= KINDA_SMALL_NUMBER)
+	{
+		UpdateFogVisibility(SmoothedRevealCenter, 1.0f / 60.0f, false);
+	}
 }
 
 void APMEFogOfWarActor::BuildPersistentFogGrid()
 {
 	bPersistentGridBuilt = false;
-	CoveredTileStates.Reset();
+	FogCoverageValues.Reset();
 
 	if (!MazeGenerator || LastGridWidth <= 0 || LastGridHeight <= 0)
 	{
@@ -162,56 +208,94 @@ void APMEFogOfWarActor::BuildPersistentFogGrid()
 
 	FogInstances->ClearInstances();
 	FogInstances->PreAllocateInstancesMemory(TotalTiles);
-	CoveredTileStates.Init(1, TotalTiles);
+	FogCoverageValues.Init(1.0f, TotalTiles);
 
-	// Initially cover every tile. The reveal radius is applied afterwards by
-	// moving only the visible instances below the map.
 	for (int32 Y = 0; Y < LastGridHeight; ++Y)
 	{
 		for (int32 X = 0; X < LastGridWidth; ++X)
 		{
-			FogInstances->AddInstanceWorldSpace(MakeFogTransform(X, Y, true));
+			FogInstances->AddInstanceWorldSpace(MakeFogTransform(X, Y, 1.0f));
 		}
 	}
 
 	bPersistentGridBuilt = FogInstances->GetInstanceCount() == TotalTiles;
 }
 
-void APMEFogOfWarActor::UpdateFogVisibility(const FIntPoint& PawnCell, const bool bForceAll)
+void APMEFogOfWarActor::UpdateFogVisibility(
+	const FVector2D& RevealCenterInGrid,
+	const float DeltaSeconds,
+	const bool bSnapAll)
 {
 	if (!bPersistentGridBuilt || !MazeGenerator)
 	{
 		return;
 	}
 
-	const float RadiusSquared = FMath::Square(RevealRadiusInTiles);
-	TArray<int32> ChangedInstanceIndices;
-	ChangedInstanceIndices.Reserve((FMath::CeilToInt(RevealRadiusInTiles) * 2 + 3) * 8);
+	const float Feather = FMath::Max(0.0f, RevealEdgeFeatherInTiles);
+	const float InnerRadius = FMath::Max(0.0f, RevealRadiusInTiles - Feather);
+	const float OuterRadius = RevealRadiusInTiles + Feather;
 
-	// First calculate the complete transition without touching the render
-	// state. This lets the last UpdateInstanceTransform publish every change
-	// together instead of exposing an intermediate fog layout.
+	TArray<int32> ChangedInstanceIndices;
+	ChangedInstanceIndices.Reserve(
+		FMath::Max(32, FMath::CeilToInt(2.0f * PI * OuterRadius * 3.0f)));
+
 	for (int32 Y = 0; Y < LastGridHeight; ++Y)
 	{
 		for (int32 X = 0; X < LastGridWidth; ++X)
 		{
-			const float DeltaX = static_cast<float>(X - PawnCell.X);
-			const float DeltaY = static_cast<float>(Y - PawnCell.Y);
-			const bool bShouldBeCovered = (DeltaX * DeltaX + DeltaY * DeltaY) > RadiusSquared;
 			const int32 InstanceIndex = ToFogInstanceIndex(X, Y);
-
-			if (!CoveredTileStates.IsValidIndex(InstanceIndex))
+			if (!FogCoverageValues.IsValidIndex(InstanceIndex))
 			{
 				continue;
 			}
 
-			const uint8 DesiredState = bShouldBeCovered ? 1 : 0;
-			if (!bForceAll && CoveredTileStates[InstanceIndex] == DesiredState)
+			const float DeltaX = static_cast<float>(X) - RevealCenterInGrid.X;
+			const float DeltaY = static_cast<float>(Y) - RevealCenterInGrid.Y;
+			const float DistanceInTiles = FMath::Sqrt(DeltaX * DeltaX + DeltaY * DeltaY);
+
+			float TargetCoverage = 0.0f;
+			if (Feather <= KINDA_SMALL_NUMBER)
+			{
+				TargetCoverage = DistanceInTiles > RevealRadiusInTiles ? 1.0f : 0.0f;
+			}
+			else if (DistanceInTiles <= InnerRadius)
+			{
+				TargetCoverage = 0.0f;
+			}
+			else if (DistanceInTiles >= OuterRadius)
+			{
+				TargetCoverage = 1.0f;
+			}
+			else
+			{
+				const float NormalizedDistance =
+					(DistanceInTiles - InnerRadius) / FMath::Max(KINDA_SMALL_NUMBER, OuterRadius - InnerRadius);
+				TargetCoverage = SmoothStep01(NormalizedDistance);
+			}
+
+			const float PreviousCoverage = FogCoverageValues[InstanceIndex];
+			float NewCoverage = TargetCoverage;
+
+			if (!bSnapAll)
+			{
+				NewCoverage = FMath::FInterpTo(
+					PreviousCoverage,
+					TargetCoverage,
+					DeltaSeconds,
+					FogTileTransitionSpeed);
+
+				if (FMath::IsNearlyEqual(NewCoverage, TargetCoverage, TransformUpdateTolerance))
+				{
+					NewCoverage = TargetCoverage;
+				}
+			}
+
+			if (FMath::IsNearlyEqual(PreviousCoverage, NewCoverage, TransformUpdateTolerance))
 			{
 				continue;
 			}
 
-			CoveredTileStates[InstanceIndex] = DesiredState;
+			FogCoverageValues[InstanceIndex] = NewCoverage;
 			ChangedInstanceIndices.Add(InstanceIndex);
 		}
 	}
@@ -221,41 +305,86 @@ void APMEFogOfWarActor::UpdateFogVisibility(const FIntPoint& PawnCell, const boo
 		const int32 InstanceIndex = ChangedInstanceIndices[ChangeIndex];
 		const int32 X = InstanceIndex % LastGridWidth;
 		const int32 Y = InstanceIndex / LastGridWidth;
-		const bool bCovered = CoveredTileStates[InstanceIndex] != 0;
 		const bool bPublishCompleteBatch = ChangeIndex == ChangedInstanceIndices.Num() - 1;
 
 		FogInstances->UpdateInstanceTransform(
 			InstanceIndex,
-			MakeFogTransform(X, Y, bCovered),
+			MakeFogTransform(X, Y, FogCoverageValues[InstanceIndex]),
 			true,
 			bPublishCompleteBatch,
 			true);
 	}
 }
 
-FTransform APMEFogOfWarActor::MakeFogTransform(const int32 X, const int32 Y, const bool bCovered) const
+FVector2D APMEFogOfWarActor::WorldToContinuousGrid(const FVector& WorldLocation) const
+{
+	if (!MazeGenerator || LastGridWidth <= 0 || LastGridHeight <= 0)
+	{
+		return FVector2D::ZeroVector;
+	}
+
+	const float TileSize = MazeGenerator->GetTileSize();
+	if (TileSize <= KINDA_SMALL_NUMBER)
+	{
+		return FVector2D::ZeroVector;
+	}
+
+	const FVector Local = WorldLocation - MazeGenerator->GetActorLocation();
+	const float CenterOffsetX = static_cast<float>(LastGridWidth - 1) * 0.5f;
+	const float CenterOffsetY = static_cast<float>(LastGridHeight - 1) * 0.5f;
+
+	return FVector2D(
+		Local.X / TileSize + CenterOffsetX,
+		Local.Y / TileSize + CenterOffsetY);
+}
+
+FTransform APMEFogOfWarActor::MakeFogTransform(
+	const int32 X,
+	const int32 Y,
+	const float Coverage) const
 {
 	if (!MazeGenerator)
 	{
 		return FTransform::Identity;
 	}
 
+	const float ClampedCoverage = FMath::Clamp(Coverage, 0.0f, 1.0f);
 	const float TileSize = MazeGenerator->GetTileSize();
 	const float FogZ = MazeGenerator->GetWallHeight() + FogTileThickness + 15.0f;
+	const float HiddenThreshold = FMath::Clamp(
+		FullyHiddenCoverageThreshold,
+		TransformUpdateTolerance,
+		0.95f);
 
-	if (bCovered)
+	// An opaque cube scaled almost to zero remains visible as a black pixel.
+	// Remove it from the visible fog layer before it reaches that state.
+	if (ClampedCoverage <= HiddenThreshold)
 	{
-		const FVector Location = MazeGenerator->GridToWorld(X, Y) + FVector(0.0f, 0.0f, FogZ);
-		const FVector Scale(TileSize / 100.0f, TileSize / 100.0f, FogTileThickness / 100.0f);
-		return FTransform(FRotator::ZeroRotator, Location, Scale);
+		const float HiddenDepth = FMath::Max(10000.0f, MazeGenerator->GetWallHeight() * 20.0f);
+		const FVector HiddenLocation =
+			MazeGenerator->GridToWorld(X, Y) + FVector(0.0f, 0.0f, -HiddenDepth);
+		return FTransform(FRotator::ZeroRotator, HiddenLocation, FVector::OneVector);
 	}
 
-	// Keep the instance alive and its index stable, but place it well below the
-	// maze with a tiny scale. Removing instances would recreate the HISM render
-	// data and is the source of the one-frame full-map flash.
-	const float HiddenDepth = FMath::Max(10000.0f, MazeGenerator->GetWallHeight() * 20.0f);
-	const FVector HiddenLocation = MazeGenerator->GridToWorld(X, Y) + FVector(0.0f, 0.0f, -HiddenDepth);
-	return FTransform(FRotator::ZeroRotator, HiddenLocation, FVector(0.001f));
+	// Remap the visible portion of the transition so that a tile never becomes
+	// a tiny isolated dot. It disappears once HiddenThreshold is reached.
+	const float VisibleCoverage = FMath::GetRangePct(
+		FVector2D(HiddenThreshold, 1.0f),
+		ClampedCoverage);
+	const float CurvedCoverage = FMath::Sqrt(FMath::Clamp(VisibleCoverage, 0.0f, 1.0f));
+	const float VisualScale = FMath::Lerp(
+		FMath::Clamp(MinimumVisibleFogScale, 0.05f, 0.75f),
+		1.0f,
+		CurvedCoverage);
+
+	const float OverlapScale = FMath::Clamp(FogTileOverlapScale, 1.0f, 1.15f);
+	const FVector Location = MazeGenerator->GridToWorld(X, Y) + FVector(0.0f, 0.0f, FogZ);
+	const FVector Scale(
+		TileSize / 100.0f * VisualScale * OverlapScale,
+		TileSize / 100.0f * VisualScale * OverlapScale,
+		FogTileThickness / 100.0f);
+
+	return FTransform(FRotator::ZeroRotator, Location, Scale);
 }
 
 int32 APMEFogOfWarActor::ToFogInstanceIndex(const int32 X, const int32 Y) const
