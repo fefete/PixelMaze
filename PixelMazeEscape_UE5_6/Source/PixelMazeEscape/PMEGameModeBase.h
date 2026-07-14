@@ -116,6 +116,15 @@ protected:
 	bool bAllowPatrolTransitAcrossProgressRoutes = true;
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category="Pixel Maze|Enemies|Patrol Safety")
 	bool bPreventPatrolRouteOverlap = true;
+
+	/** Maximum number of consecutive critical-route/object cells in a patrol route. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category="Pixel Maze|Enemies|Patrol Safety",
+		meta=(ClampMin="1", ClampMax="6"))
+	int32 EnemyMaximumConsecutiveTransitTiles = 2;
+
+	/** Reserve at least one adjacent tile where a player can wait before collecting an object. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category="Pixel Maze|Enemies|Patrol Safety")
+	bool bReserveInteractionApproachCell = true;
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category="Pixel Maze|Enemies",
 		meta=(ClampMin="0.0", ClampMax="10.0"))
 	float EnemyContactResetCooldown = 1.0f;
@@ -151,6 +160,9 @@ private:
 	TArray<FIntPoint> GetEnemyProtectedCells() const;
 	TSet<FIntPoint> BuildTransitOnlyPatrolCells() const;
 	TSet<FIntPoint> BuildHardForbiddenPatrolCells(const TSet<FIntPoint>& TransitOnlyPatrolCells) const;
+	TSet<FIntPoint> BuildReservedObjectApproachCells(const TSet<FIntPoint>& TransitOnlyPatrolCells) const;
+	bool IsValidPatrolRoute(const TArray<FIntPoint>& Route, const TSet<FIntPoint>& HardForbiddenPatrolCells,
+	                        const TSet<FIntPoint>& TransitOnlyPatrolCells) const;
 	bool BuildWalkableGridPath(FIntPoint StartCell, FIntPoint GoalCell, TArray<FIntPoint>& OutPath) const;
 	void AddPathToCellSet(const TArray<FIntPoint>& Path, TSet<FIntPoint>& InOutCells) const;
 	bool IsCellInsideEnemySafeZone(FIntPoint Cell, const TArray<FIntPoint>& ProtectedCells) const;

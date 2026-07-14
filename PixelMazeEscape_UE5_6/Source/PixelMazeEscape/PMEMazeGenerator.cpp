@@ -520,95 +520,44 @@ bool APMEMazeGenerator::HasClearGridLineOfSight(
 		return false;
 	}
 
-	const FVector StartLocal = StartWorldLocation - GetActorLocation();
-	const FVector EndLocal = EndWorldLocation - GetActorLocation();
-	const double CenterOffsetX = static_cast<double>(GridWidth - 1) * 0.5;
-	const double CenterOffsetY = static_cast<double>(GridHeight - 1) * 0.5;
+	const FIntPoint LoSStartCell = WorldToGrid(StartWorldLocation);
+	const FIntPoint LoSEndCell = WorldToGrid(EndWorldLocation);
 
-	// Shift by half a cell so integer boundaries match grid-cell edges.
-	const double StartX = static_cast<double>(StartLocal.X) / TileSize + CenterOffsetX + 0.5;
-	const double StartY = static_cast<double>(StartLocal.Y) / TileSize + CenterOffsetY + 0.5;
-	const double EndX = static_cast<double>(EndLocal.X) / TileSize + CenterOffsetX + 0.5;
-	const double EndY = static_cast<double>(EndLocal.Y) / TileSize + CenterOffsetY + 0.5;
-
-	int32 CellX = FMath::FloorToInt(StartX);
-	int32 CellY = FMath::FloorToInt(StartY);
-	const int32 EndCellX = FMath::FloorToInt(EndX);
-	const int32 EndCellY = FMath::FloorToInt(EndY);
-
-	if (!IsWalkable(CellX, CellY) || !IsWalkable(EndCellX, EndCellY))
+	if (!IsWalkable(LoSStartCell.X, LoSStartCell.Y) ||
+		!IsWalkable(LoSEndCell.X, LoSEndCell.Y))
 	{
 		return false;
 	}
 
-	const double DeltaX = EndX - StartX;
-	const double DeltaY = EndY - StartY;
-	const int32 StepX = DeltaX > 0.0 ? 1 : (DeltaX < 0.0 ? -1 : 0);
-	const int32 StepY = DeltaY > 0.0 ? 1 : (DeltaY < 0.0 ? -1 : 0);
-	const double Infinite = TNumericLimits<double>::Max();
-	const double TDeltaX = StepX == 0 ? Infinite : FMath::Abs(1.0 / DeltaX);
-	const double TDeltaY = StepY == 0 ? Infinite : FMath::Abs(1.0 / DeltaY);
-
-	double TMaxX = Infinite;
-	if (StepX > 0)
+	const bool bSameColumn = LoSStartCell.X == LoSEndCell.X;
+	const bool bSameRow = LoSStartCell.Y == LoSEndCell.Y;
+	if (!bSameColumn && !bSameRow)
 	{
-		TMaxX = (static_cast<double>(CellX + 1) - StartX) / DeltaX;
-	}
-	else if (StepX < 0)
-	{
-		TMaxX = (StartX - static_cast<double>(CellX)) / -DeltaX;
+		return false;
 	}
 
-	double TMaxY = Infinite;
-	if (StepY > 0)
+	if (LoSStartCell == LoSEndCell)
 	{
-		TMaxY = (static_cast<double>(CellY + 1) - StartY) / DeltaY;
-	}
-	else if (StepY < 0)
-	{
-		TMaxY = (StartY - static_cast<double>(CellY)) / -DeltaY;
+		return true;
 	}
 
-	const int32 MaxIterations = FMath::Max(1, GridWidth * GridHeight * 4);
-	for (int32 Iteration = 0; Iteration < MaxIterations; ++Iteration)
+	const FIntPoint Step(
+		bSameRow ? FMath::Sign(LoSEndCell.X - LoSStartCell.X) : 0,
+		bSameColumn ? FMath::Sign(LoSEndCell.Y - LoSStartCell.Y) : 0);
+
+	FIntPoint Current = LoSStartCell;
+	const int32 MaximumSteps = GridWidth + GridHeight + 2;
+	for (int32 StepIndex = 0; StepIndex < MaximumSteps; ++StepIndex)
 	{
-		if (CellX == EndCellX && CellY == EndCellY)
-		{
-			return true;
-		}
-
-		if (FMath::IsNearlyEqual(TMaxX, TMaxY, 1.e-9))
-		{
-			const int32 NextX = CellX + StepX;
-			const int32 NextY = CellY + StepY;
-
-			// A line passing exactly through a corner must not see through the
-			// diagonal crack between two wall cells.
-			if ((StepX != 0 && !IsWalkable(NextX, CellY)) ||
-				(StepY != 0 && !IsWalkable(CellX, NextY)))
-			{
-				return false;
-			}
-
-			CellX = NextX;
-			CellY = NextY;
-			TMaxX += TDeltaX;
-			TMaxY += TDeltaY;
-		}
-		else if (TMaxX < TMaxY)
-		{
-			CellX += StepX;
-			TMaxX += TDeltaX;
-		}
-		else
-		{
-			CellY += StepY;
-			TMaxY += TDeltaY;
-		}
-
-		if (!IsWalkable(CellX, CellY))
+		Current += Step;
+		if (!IsWalkable(Current.X, Current.Y))
 		{
 			return false;
+		}
+
+		if (Current == LoSEndCell)
+		{
+			return true;
 		}
 	}
 

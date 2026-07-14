@@ -62,8 +62,9 @@ void APMEGameModeBase::BeginPlay()
 	Super::BeginPlay();
 
 	EnsureWorldLighting();
-	if (const UPMEGameInstance* GI = GetGameInstance<UPMEGameInstance>()) CurrentLevel =
-		FMath::Max(1, GI->CurrentLevel);
+	if (const UPMEGameInstance* GI = GetGameInstance<UPMEGameInstance>())
+		CurrentLevel =
+			FMath::Max(1, GI->CurrentLevel);
 	MazeGameState = GetGameState<APMEGameState>();
 
 	if (MazeGameState)
@@ -231,7 +232,8 @@ void APMEGameModeBase::StartMaze(const bool bUseNewSeed)
 void APMEGameModeBase::HandlePlayerReachedExit(APMEPlayerCharacter* PlayerCharacter)
 {
 	if (!HasAuthority() || !PlayerCharacter || !MazeGameState || MazeGameState->IsWaitingForPlayers() || MazeGameState->
-		IsRoundFinished()) return;
+		IsRoundFinished())
+		return;
 	APMEPlayerState* ReachingPS = PlayerCharacter->GetPlayerState<APMEPlayerState>();
 	if (!ReachingPS || ReachingPS->HasReachedExit() || ReachingPS->IsDowned()) return;
 	if (ObjectiveManager && !ObjectiveManager->CanPlayerUseExit(ReachingPS)) return;
@@ -256,7 +258,8 @@ void APMEGameModeBase::HandlePlayerReachedExit(APMEPlayerCharacter* PlayerCharac
 void APMEGameModeBase::HandlePlayerCaughtByEnemy(APMEPlayerCharacter* PlayerCharacter)
 {
 	if (!HasAuthority() || !PlayerCharacter || !MazeGenerator || !MazeGameState || MazeGameState->IsWaitingForPlayers()
-		|| MazeGameState->IsRoundFinished()) return;
+		|| MazeGameState->IsRoundFinished())
+		return;
 	APMEPlayerState* PS = PlayerCharacter->GetPlayerState<APMEPlayerState>();
 	if (!PS || PS->HasReachedExit() || PS->IsDowned()) return;
 
@@ -265,8 +268,9 @@ void APMEGameModeBase::HandlePlayerCaughtByEnemy(APMEPlayerCharacter* PlayerChar
 	if (const float* Last = LastEnemyContactTimes.Find(Key)) if (Now - *Last < EnemyContactResetCooldown) return;
 	LastEnemyContactTimes.Add(Key, Now);
 
-	if (APMEPlayerController* PC = Cast<APMEPlayerController>(PlayerCharacter->GetController())) PC->
-		ClientPlayEnemyHitSound();
+	if (APMEPlayerController* PC = Cast<APMEPlayerController>(PlayerCharacter->GetController()))
+		PC->
+			ClientPlayEnemyHitSound();
 	PS->RecordHit();
 	if (UAbilitySystemComponent* ASC = PS->GetAbilitySystemComponent())
 	{
@@ -303,8 +307,9 @@ void APMEGameModeBase::HandlePlayerCaughtByEnemy(APMEPlayerCharacter* PlayerChar
 	const FVector RespawnLocation = PlayMode == EPMEPlayMode::Versus
 		                                ? MazeGenerator->GetVersusPlayerStartWorldLocation(PlayerIndex)
 		                                : MazeGenerator->GetPlayerStartWorldLocation();
-	if (APMEPlayerController* PC = Cast<APMEPlayerController>(PlayerCharacter->GetController())) PC->
-		ResetIgnoreMoveInput();
+	if (APMEPlayerController* PC = Cast<APMEPlayerController>(PlayerCharacter->GetController()))
+		PC->
+			ResetIgnoreMoveInput();
 	PlayerCharacter->GetCharacterMovement()->StopMovementImmediately();
 	PlayerCharacter->GetCharacterMovement()->SetMovementMode(MOVE_Walking);
 	PlayerCharacter->SetActorLocation(RespawnLocation, false, nullptr, ETeleportType::TeleportPhysics);
@@ -327,8 +332,9 @@ void APMEGameModeBase::FinishRound(APMEPlayerState* WinnerPlayerState, const flo
 		WinnerIndex = WinnerPlayerState->GetPlayerIndex();
 		WinnerName = WinnerPlayerState->GetPlayerName();
 	}
-	else if (!bDefeat && PlayMode == EPMEPlayMode::Coop) WinnerName =
-		UPMELocalizationLibrary::GetText(TEXT("Game.Team")).ToString();
+	else if (!bDefeat && PlayMode == EPMEPlayMode::Coop)
+		WinnerName =
+			UPMELocalizationLibrary::GetText(TEXT("Game.Team")).ToString();
 
 	if (UPMEGameInstance* GI = GetGameInstance<UPMEGameInstance>())
 	{
@@ -544,11 +550,19 @@ void APMEGameModeBase::SpawnPatrolEnemies()
 
 	// Exact start-to-exit routes are transit-only rather than permanently
 	// forbidden. Patrols may cross these cells, but their route must start and
-	// end outside them. The enemy actor also skips pauses and perception while
-	// crossing, so the mandatory corridor always reopens automatically.
+	// end outside them. The enemy never pauses or reverses while crossing, so
+	// the mandatory corridor always reopens automatically. Perception remains
+	// active and a chase may use every walkable cell.
 	const TSet<FIntPoint> TransitOnlyPatrolCells = BuildTransitOnlyPatrolCells();
-	const TSet<FIntPoint> HardForbiddenPatrolCells =
+	TSet<FIntPoint> HardForbiddenPatrolCells =
 		BuildHardForbiddenPatrolCells(TransitOnlyPatrolCells);
+
+	const TSet<FIntPoint> ReservedObjectApproachCells =
+		BuildReservedObjectApproachCells(TransitOnlyPatrolCells);
+	for (const FIntPoint& ReservedCell : ReservedObjectApproachCells)
+	{
+		HardForbiddenPatrolCells.Add(ReservedCell);
+	}
 
 	TArray<FIntPoint> CandidateCells;
 	CandidateCells.Reserve(MazeGenerator->GetGridWidth() * MazeGenerator->GetGridHeight());
@@ -792,6 +806,24 @@ TArray<FIntPoint> APMEGameModeBase::BuildPatrolRoute(
 				continue;
 			}
 
+			if (TransitOnlyPatrolCells.Contains(Next))
+			{
+				int32 ConsecutiveTransitTiles = 0;
+				for (int32 RouteIndex = CurrentRoute.Num() - 1; RouteIndex >= 0; --RouteIndex)
+				{
+					if (!TransitOnlyPatrolCells.Contains(CurrentRoute[RouteIndex]))
+					{
+						break;
+					}
+					++ConsecutiveTransitTiles;
+				}
+
+				if (ConsecutiveTransitTiles >= FMath::Max(1, EnemyMaximumConsecutiveTransitTiles))
+				{
+					continue;
+				}
+			}
+
 			Candidates.Add(Next);
 		}
 
@@ -803,11 +835,11 @@ TArray<FIntPoint> APMEGameModeBase::BuildPatrolRoute(
 			Candidates.Swap(Index, RandomStream.RandRange(0, Index));
 		}
 
-		// Prefer trying a crossing first when one is available. The random
-		// order within each group remains deterministic for the maze seed.
+		// Build the patrol area in ordinary cells first. Critical cells remain
+		// available as short internal crossings, never as the route's identity.
 		Candidates.StableSort([&TransitOnlyPatrolCells](const FIntPoint& A, const FIntPoint& B)
 		{
-			return TransitOnlyPatrolCells.Contains(A) && !TransitOnlyPatrolCells.Contains(B);
+			return !TransitOnlyPatrolCells.Contains(A) && TransitOnlyPatrolCells.Contains(B);
 		});
 
 		for (const FIntPoint& Next : Candidates)
@@ -826,7 +858,12 @@ TArray<FIntPoint> APMEGameModeBase::BuildPatrolRoute(
 	};
 
 	SearchRoute(StartCell);
-	return BestRoute;
+	return IsValidPatrolRoute(
+		       BestRoute,
+		       HardForbiddenPatrolCells,
+		       TransitOnlyPatrolCells)
+		       ? BestRoute
+		       : EmptyRoute;
 }
 
 TSet<FIntPoint> APMEGameModeBase::BuildTransitOnlyPatrolCells() const
@@ -862,6 +899,22 @@ TSet<FIntPoint> APMEGameModeBase::BuildTransitOnlyPatrolCells() const
 			ProgressPath))
 		{
 			AddPathToCellSet(ProgressPath, TransitCells);
+		}
+	}
+
+	// Interactive cells are legal crossing cells, but can never be a patrol
+	// endpoint or a pause/reversal point. This keeps pickups and objectives
+	// accessible without removing the risk of an enemy passing nearby.
+	if (ObjectiveManager)
+	{
+		TArray<FIntPoint> InteractionCells;
+		ObjectiveManager->GetActiveInteractionCells(InteractionCells);
+		for (const FIntPoint& InteractionCell : InteractionCells)
+		{
+			if (MazeGenerator->IsWalkable(InteractionCell.X, InteractionCell.Y))
+			{
+				TransitCells.Add(InteractionCell);
+			}
 		}
 	}
 
@@ -1028,6 +1081,124 @@ TSet<FIntPoint> APMEGameModeBase::BuildHardForbiddenPatrolCells(
 	return ForbiddenCells;
 }
 
+TSet<FIntPoint> APMEGameModeBase::BuildReservedObjectApproachCells(
+	const TSet<FIntPoint>& TransitOnlyPatrolCells) const
+{
+	TSet<FIntPoint> ReservedCells;
+	if (!bReserveInteractionApproachCell || !MazeGenerator || !ObjectiveManager)
+	{
+		return ReservedCells;
+	}
+
+	TArray<FIntPoint> InteractionCells;
+	ObjectiveManager->GetActiveInteractionCells(InteractionCells);
+	TSet<FIntPoint> InteractionCellSet;
+	for (const FIntPoint& InteractionCell : InteractionCells)
+	{
+		InteractionCellSet.Add(InteractionCell);
+	}
+
+	const FIntPoint Directions[] =
+	{
+		FIntPoint(1, 0),
+		FIntPoint(-1, 0),
+		FIntPoint(0, 1),
+		FIntPoint(0, -1)
+	};
+
+	for (const FIntPoint& InteractionCell : InteractionCells)
+	{
+		FIntPoint BestCell(-1, -1);
+		int32 BestScore = MIN_int32;
+
+		for (const FIntPoint& Direction : Directions)
+		{
+			const FIntPoint Candidate = InteractionCell + Direction;
+			if (!MazeGenerator->IsWalkable(Candidate.X, Candidate.Y) ||
+				InteractionCellSet.Contains(Candidate) ||
+				ReservedCells.Contains(Candidate))
+			{
+				continue;
+			}
+
+			// Prefer an open waiting tile and, when possible, one not already
+			// part of the mandatory progress route. Hard-forbidden applies only
+			// to enemy patrol generation; it never changes player navigation.
+			const int32 Score =
+				CountWalkableNeighbours(Candidate) * 100 +
+				(TransitOnlyPatrolCells.Contains(Candidate) ? 0 : 25) -
+				FMath::Abs(Candidate.X - InteractionCell.X) -
+				FMath::Abs(Candidate.Y - InteractionCell.Y);
+
+			if (Score > BestScore ||
+				(Score == BestScore &&
+					(Candidate.Y < BestCell.Y ||
+						(Candidate.Y == BestCell.Y && Candidate.X < BestCell.X))))
+			{
+				BestScore = Score;
+				BestCell = Candidate;
+			}
+		}
+
+		if (BestCell.X >= 0 && BestCell.Y >= 0)
+		{
+			ReservedCells.Add(BestCell);
+		}
+	}
+
+	return ReservedCells;
+}
+
+bool APMEGameModeBase::IsValidPatrolRoute(
+	const TArray<FIntPoint>& Route,
+	const TSet<FIntPoint>& HardForbiddenPatrolCells,
+	const TSet<FIntPoint>& TransitOnlyPatrolCells) const
+{
+	if (!MazeGenerator || Route.Num() < 2 ||
+		TransitOnlyPatrolCells.Contains(Route[0]) ||
+		TransitOnlyPatrolCells.Contains(Route.Last()))
+	{
+		return false;
+	}
+
+	int32 ConsecutiveTransitTiles = 0;
+	const int32 MaximumTransitTiles = FMath::Max(1, EnemyMaximumConsecutiveTransitTiles);
+
+	for (int32 Index = 0; Index < Route.Num(); ++Index)
+	{
+		const FIntPoint Cell = Route[Index];
+		if (!MazeGenerator->IsWalkable(Cell.X, Cell.Y) ||
+			HardForbiddenPatrolCells.Contains(Cell))
+		{
+			return false;
+		}
+
+		if (TransitOnlyPatrolCells.Contains(Cell))
+		{
+			++ConsecutiveTransitTiles;
+			if (ConsecutiveTransitTiles > MaximumTransitTiles)
+			{
+				return false;
+			}
+		}
+		else
+		{
+			ConsecutiveTransitTiles = 0;
+		}
+
+		if (Index > 0)
+		{
+			const FIntPoint Delta = Cell - Route[Index - 1];
+			if (FMath::Abs(Delta.X) + FMath::Abs(Delta.Y) != 1)
+			{
+				return false;
+			}
+		}
+	}
+
+	return true;
+}
+
 void APMEGameModeBase::AddPathToCellSet(
 	const TArray<FIntPoint>& Path,
 	TSet<FIntPoint>& InOutCells) const
@@ -1155,8 +1326,9 @@ void APMEGameModeBase::EnterEscapePhase()
 	MazeGameState->SetRoundPhase(EPMERoundPhase::Escape);
 	if (ExitActor) ExitActor->SetExitEnabled(true);
 	ApplyEscapeEnemyEscalation();
-	if (MazeGenerator) EmitNoise(MazeGenerator->GetExitWorldLocation(), 16.0f, ExitActor,
-	                             TEXT("Event.Noise.ExitUnlocked"));
+	if (MazeGenerator)
+		EmitNoise(MazeGenerator->GetExitWorldLocation(), 16.0f, ExitActor,
+		          TEXT("Event.Noise.ExitUnlocked"));
 }
 
 void APMEGameModeBase::ApplyEscapeEnemyEscalation()
@@ -1169,8 +1341,9 @@ void APMEGameModeBase::EmitNoise(const FVector& Location, const float RadiusInTi
 {
 	if (!HasAuthority() || !MazeGenerator) return;
 	float Radius = RadiusInTiles;
-	if (CurrentModifier == EPMELevelModifier::Echo || CurrentModifier == EPMELevelModifier::SensitiveHearing) Radius *=
-		1.5f;
+	if (CurrentModifier == EPMELevelModifier::Echo || CurrentModifier == EPMELevelModifier::SensitiveHearing)
+		Radius *=
+			1.5f;
 	for (APMEPatrolEnemy* Enemy : PatrolEnemies) if (Enemy) Enemy->HearNoise(Location, Radius, Source, NoiseTag);
 }
 
@@ -1192,8 +1365,9 @@ void APMEGameModeBase::StunEnemiesAround(const FVector& Location, const float Ra
 	if (!HasAuthority() || !MazeGenerator) return;
 	const float RadiusWorld = RadiusInTiles * MazeGenerator->GetTileSize();
 	for (APMEPatrolEnemy* Enemy : PatrolEnemies)
-		if (Enemy && FVector::DistSquared2D(Enemy->GetActorLocation(), Location) <= FMath::Square(RadiusWorld)) Enemy->
-			ApplyStun(Duration);
+		if (Enemy && FVector::DistSquared2D(Enemy->GetActorLocation(), Location) <= FMath::Square(RadiusWorld))
+			Enemy->
+				ApplyStun(Duration);
 	EmitNoise(Location, RadiusInTiles * 1.5f, nullptr, TEXT("Event.Noise.LightBomb"));
 }
 
@@ -1251,8 +1425,8 @@ TArray<EPMEUpgradeType> APMEGameModeBase::BuildUpgradeChoices(const APMEPlayerSt
 	};
 	FRandomStream Stream(
 		(MazeGenerator ? MazeGenerator->GetActiveSeed() : CurrentLevel * 101) ^ ((PlayerState
-			? PlayerState->GetPlayerIndex()
-			: 1) * 7919));
+				? PlayerState->GetPlayerIndex()
+				: 1) * 7919));
 	TArray<EPMEUpgradeType> Result;
 	while (Result.Num() < 3 && Pool.Num() > 0)
 	{
@@ -1266,7 +1440,8 @@ TArray<EPMEUpgradeType> APMEGameModeBase::BuildUpgradeChoices(const APMEPlayerSt
 void APMEGameModeBase::HandleUpgradeSelected(APMEPlayerState* PlayerState, const EPMEUpgradeType UpgradeType)
 {
 	if (!HasAuthority() || !MazeGameState || MazeGameState->GetRoundPhase() != EPMERoundPhase::UpgradeSelection || !
-		PlayerState) return;
+		PlayerState)
+		return;
 	const TWeakObjectPtr<APMEPlayerState> Key(PlayerState);
 	if (PlayersWithUpgradeSelection.Contains(Key)) return;
 	PlayerState->AddUpgrade(UpgradeType);
@@ -1338,18 +1513,22 @@ bool APMEGameModeBase::AreAllPlayersDowned() const
 {
 	int32 Players = 0;
 	int32 Downed = 0;
-	for (APlayerState* Base : MazeGameState->PlayerArray) if (const APMEPlayerState* PS = Cast<APMEPlayerState>(Base))
-	{
-		++Players;
-		if (PS->IsDowned()) ++Downed;
-	}
+	for (APlayerState* Base : MazeGameState->PlayerArray)
+		if (const APMEPlayerState* PS = Cast<APMEPlayerState>(Base))
+		{
+			++Players;
+			if (PS->IsDowned()) ++Downed;
+		}
 	return Players > 0 && Players == Downed;
 }
 
 APMEPlayerState* APMEGameModeBase::FindOtherActivePlayer(const APMEPlayerState* PlayerState) const
 {
-	for (APlayerState* Base : MazeGameState->PlayerArray) if (APMEPlayerState* PS = Cast<APMEPlayerState>(Base)) if (PS
-		!= PlayerState && !PS->IsDowned()) return PS;
+	for (APlayerState* Base : MazeGameState->PlayerArray)
+		if (APMEPlayerState* PS = Cast<APMEPlayerState>(Base))
+			if (PS
+				!= PlayerState && !PS->IsDowned())
+				return PS;
 	return nullptr;
 }
 

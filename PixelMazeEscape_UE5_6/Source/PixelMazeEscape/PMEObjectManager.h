@@ -24,6 +24,13 @@ public:
 	void HandleObjectiveActivated(APMEObjectActor* Objective, APMEPlayerState* ActivatingPlayer);
 	bool CompleteOneObjectiveWithMasterKey(APMEPlayerState* PlayerState);
 
+	/**
+	 * Returns the current objective and pickup grid cells. The authoritative
+	 * GameMode uses these cells when generating patrol routes so an enemy may
+	 * pass an object but can never use it as a pause/reversal point.
+	 */
+	void GetActiveInteractionCells(TArray<FIntPoint>& OutCells) const;
+
 	UFUNCTION(BlueprintPure, Category="Pixel Maze|Objectives")
 	bool CanPlayerUseExit(const APMEPlayerState* PlayerState) const;
 	UFUNCTION(BlueprintPure, Category="Pixel Maze|Objectives")

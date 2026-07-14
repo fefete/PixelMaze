@@ -100,6 +100,42 @@ void APMEObjectManager::InitializeObjectives(APMEMazeGenerator* InMaze, EPMEPlay
 	}
 }
 
+void APMEObjectManager::GetActiveInteractionCells(TArray<FIntPoint>& OutCells) const
+{
+	OutCells.Reset();
+	if (!Maze)
+	{
+		return;
+	}
+
+	auto AddActorCell = [this, &OutCells](const AActor* Actor)
+	{
+		if (!IsValid(Actor))
+		{
+			return;
+		}
+
+		const FIntPoint Cell = Maze->WorldToGrid(Actor->GetActorLocation());
+		if (Maze->IsWalkable(Cell.X, Cell.Y))
+		{
+			OutCells.AddUnique(Cell);
+		}
+	};
+
+	for (const APMEObjectActor* Objective : Objectives)
+	{
+		if (IsValid(Objective) && !Objective->IsActivated())
+		{
+			AddActorCell(Objective);
+		}
+	}
+
+	for (const APMEPickup* Pickup : Pickups)
+	{
+		AddActorCell(Pickup);
+	}
+}
+
 TArray<FIntPoint> APMEObjectManager::BuildCandidateCells() const
 {
 	TArray<FIntPoint> Result;
@@ -114,30 +150,52 @@ TArray<FIntPoint> APMEObjectManager::BuildCandidateCells() const
 			if (!Maze->IsWalkable(X, Y)) continue;
 			const FIntPoint C(X, Y);
 			bool bSafe = true;
-			for (const FIntPoint& P : Protected)
-				if (FMath::Abs(C.X - P.X) + FMath::Abs(C.Y - P.Y) < 3)
-				{
-					bSafe = false;
-					break;
-				}
+			for (const FIntPoint& P : Protected) if (FMath::Abs(C.X - P.X) + FMath::Abs(C.Y - P.Y) < 3)
+			{
+				bSafe = false;
+				break;
+			}
 			if (bSafe) Result.Add(C);
 		}
 	return Result;
 }
 
-FIntPoint APMEObjectManager::PickCandidateCell(TArray<FIntPoint>& Candidates, FRandomStream& Stream,
-                                               FIntPoint Reference, int32 MinimumDistance) const
+FIntPoint APMEObjectManager::PickCandidateCell(
+	TArray<FIntPoint>& Candidates,
+	FRandomStream& Stream,
+	const FIntPoint Reference,
+	const int32 MinimumDistance) const
 {
-	TArray<int32> Valid;
-	for (int32 I = 0; I < Candidates.Num(); ++I)
-		if (FMath::Abs(Candidates[I].X - Reference.X) +
-			FMath::Abs(Candidates[I].Y - Reference.Y) >= MinimumDistance)
-			Valid.Add(I);
-	if (Valid.Num() == 0) return FIntPoint(-1, -1);
-	const int32 Pick = Valid[Stream.RandRange(0, Valid.Num() - 1)];
-	const FIntPoint Cell = Candidates[Pick];
-	Candidates.RemoveAtSwap(Pick);
-	return Cell;
+	TArray<int32> ValidIndices;
+	for (int32 Index = 0; Index < Candidates.Num(); ++Index)
+	{
+		const int32 Distance =
+			FMath::Abs(Candidates[Index].X - Reference.X) +
+			FMath::Abs(Candidates[Index].Y - Reference.Y);
+		if (Distance >= MinimumDistance)
+		{
+			ValidIndices.Add(Index);
+		}
+	}
+
+	if (ValidIndices.IsEmpty())
+	{
+		return FIntPoint(-1, -1);
+	}
+
+	const int32 PickedIndex = ValidIndices[Stream.RandRange(0, ValidIndices.Num() - 1)];
+	const FIntPoint PickedCell = Candidates[PickedIndex];
+
+	// Keep interactive actors far enough apart that they cannot compete for
+	// the same adjacent approach cell. This guarantees a dedicated waiting
+	// space for every spawned object during patrol generation.
+	Candidates.RemoveAll([PickedCell](const FIntPoint& Candidate)
+	{
+		return FMath::Abs(Candidate.X - PickedCell.X) +
+			FMath::Abs(Candidate.Y - PickedCell.Y) <= 2;
+	});
+
+	return PickedCell;
 }
 
 bool APMEObjectManager::SpawnObjectiveAt(FIntPoint Cell, int32 ID, EPMEObjectType Type, int32 Id)
@@ -231,7 +289,6 @@ bool APMEObjectManager::AreAllRequiredObjectivesComplete() const
 void APMEObjectManager::RefreshReplicatedProgress()
 {
 	ForceNetUpdate();
-	if (APMEGameState* GS = GetWorld() ? GetWorld()->GetGameState<APMEGameState>() : nullptr)
-		GS->SetObjectiveProgress(
-			SharedActivated, SharedRequired, Player1Activated, Player1Required, Player2Activated, Player2Required);
+	if (APMEGameState* GS = GetWorld() ? GetWorld()->GetGameState<APMEGameState>() : nullptr) GS->SetObjectiveProgress(
+		SharedActivated, SharedRequired, Player1Activated, Player1Required, Player2Activated, Player2Required);
 }

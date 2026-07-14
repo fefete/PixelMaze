@@ -70,9 +70,10 @@ public:
 	FIntPoint WorldToGrid(const FVector& WorldLocation) const;
 
 	/**
-	 * Tests visibility using the logical maze grid. Every grid cell touched by
-	 * the segment must be walkable. Corner crossings also test both adjacent
-	 * cells, preventing diagonal vision through the meeting point of two walls.
+	 * Cardinal grid visibility used by enemies. The two locations must resolve
+	 * to the same grid row or column and every cell between them must be
+	 * walkable. Diagonal visibility is rejected even when a world-space trace
+	 * would otherwise pass through an open corner.
 	 */
 	UFUNCTION(BlueprintPure, Category="Pixel Maze|Visibility")
 	bool HasClearGridLineOfSight(
