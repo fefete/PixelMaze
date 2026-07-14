@@ -1,0 +1,11 @@
+Pixel Maze Escape UE 5.6 — static validation
+
+- Project structure present.
+- .uproject JSON valid.
+- Python asset scripts compile with Python syntax checker.
+- All Unreal headers keep *.generated.h as the final include.
+- Fog movement path contains no ClearInstances call.
+- Fog uses one persistent HISM instance per maze tile and batches render-state publication.
+- SourceArt PNG files are readable.
+
+UnrealBuildTool/Editor compilation could not be executed because Unreal Engine 5.6 is not installed in this environment.

@@ -1,0 +1,21 @@
+Pixel Maze Escape - Patrol transit-only route validation
+
+Mazes simulated: 4000
+Patrol routes generated: 30453
+Routes crossing a mandatory player path: 2230
+Mandatory transit tiles traversed: 11476
+
+Safety violations
+- Spawn on transit-only tile: 0
+- Transit-only route endpoint: 0
+- Unbounded transit-only segment: 0
+- Non-contiguous route: 0
+- Duplicate tile inside route: 0
+- Overlap between patrol routes: 0
+
+Code invariants reviewed
+- Transit-only waypoints receive zero pause time.
+- Ping-pong reversal can occur only at non-transit route endpoints.
+- Sight checks are suppressed while entering, occupying or leaving a transit-only section.
+- Chase return points therefore cannot be created on the mandatory crossing.
+- If no route can leave the mandatory path through another non-transit tile, that candidate is discarded.

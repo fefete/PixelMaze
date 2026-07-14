@@ -1,0 +1,5 @@
+Pixel Maze Escape starter project
+
+The C++ source code and source-art files in this package were generated specifically for the requesting user and may be used, modified, and distributed in personal or commercial projects.
+
+Unreal Engine and its bundled Engine Content are subject to Epic Games' applicable license terms. This package does not redistribute Unreal Engine binaries or Engine Content.

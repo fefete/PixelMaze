@@ -1,0 +1,72 @@
+{
+  "wav_files": {
+    "BGM_Maze_BreathingMaze_Loop.wav": {
+      "channels": 2,
+      "sample_rate": 44100,
+      "sample_width_bits": 16,
+      "frames": 2116800,
+      "duration_seconds": 48.0
+    },
+    "BGM_Menu_80sSoft_Loop.wav": {
+      "channels": 2,
+      "sample_rate": 44100,
+      "sample_width_bits": 16,
+      "frames": 2646000,
+      "duration_seconds": 60.0
+    },
+    "SFX_Defeat.wav": {
+      "channels": 1,
+      "sample_rate": 44100,
+      "sample_width_bits": 16,
+      "frames": 88200,
+      "duration_seconds": 2.0
+    },
+    "SFX_Enemy_HitPlayer.wav": {
+      "channels": 1,
+      "sample_rate": 44100,
+      "sample_width_bits": 16,
+      "frames": 33075,
+      "duration_seconds": 0.75
+    },
+    "SFX_Enemy_Step.wav": {
+      "channels": 1,
+      "sample_rate": 44100,
+      "sample_width_bits": 16,
+      "frames": 10584,
+      "duration_seconds": 0.24
+    },
+    "SFX_Enemy_Vocal.wav": {
+      "channels": 1,
+      "sample_rate": 44100,
+      "sample_width_bits": 16,
+      "frames": 59535,
+      "duration_seconds": 1.35
+    },
+    "SFX_Player_Step.wav": {
+      "channels": 1,
+      "sample_rate": 44100,
+      "sample_width_bits": 16,
+      "frames": 7938,
+      "duration_seconds": 0.18
+    },
+    "SFX_Victory.wav": {
+      "channels": 1,
+      "sample_rate": 44100,
+      "sample_width_bits": 16,
+      "frames": 92610,
+      "duration_seconds": 2.1
+    }
+  },
+  "audio_assets_referenced": [
+    "SW_BGM_Maze_BreathingMaze_Loop",
+    "SW_BGM_Menu_80sSoft_Loop",
+    "SW_SFX_Defeat",
+    "SW_SFX_Enemy_HitPlayer",
+    "SW_SFX_Enemy_Step",
+    "SW_SFX_Enemy_Vocal",
+    "SW_SFX_Player_Step",
+    "SW_SFX_Victory"
+  ],
+  "python_importer_compiled": true,
+  "errors": []
+}

@@ -1,0 +1,38 @@
+PIXEL MAZE ESCAPE - PATROL ENEMIES VALIDATION
+================================================
+
+Static project validation
+-------------------------
+C++ headers/source checked:             33
+Brace mismatches:                        0
+.generated.h ordering errors:            0
+Python asset scripts compile:           OK
+SourceArt manifest JSON:                OK
+enemy.png:                              32x32 RGBA PNG, valid
+String Table bilingual key symmetry:    41 EN / 41 ES, OK
+New visible hardcoded strings:            0
+
+Algorithm mirror simulation
+---------------------------
+Modes tested:                 Single Player and Versus
+Levels per mode:              10
+Seeds per level:              100
+Total generated mazes:        2,000
+Minimum enemies generated:    2
+Routes entering safe zones:   0
+Non-adjacent patrol steps:     0
+Cases without an enemy:       0
+
+Runtime design checks
+---------------------
+- Enemy movement is executed only when HasAuthority() is true.
+- Movement replication is enabled for clients.
+- Player overlap is processed only by the authoritative GameMode.
+- Enemies are destroyed before maze regeneration and while waiting for Player 2.
+- Enemies stop when a round finishes.
+- Contact resets each player to the correct Single/Co-Op/Versus spawn.
+
+Limitation
+----------
+Unreal Engine 5.6 and UnrealBuildTool are not installed in this environment,
+so an actual UE compilation and PIE network run could not be performed here.

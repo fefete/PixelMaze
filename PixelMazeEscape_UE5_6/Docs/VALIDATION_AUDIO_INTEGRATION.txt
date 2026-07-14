@@ -1,0 +1,27 @@
+Pixel Maze Escape — validación de audio integrado
+
+Audio fuente
+- 8 WAV válidos.
+- PCM 16-bit, 44.1 kHz.
+- BGM menú: estéreo, 60.0 s.
+- BGM laberinto Opción B: estéreo, 48.0 s.
+- SFX: mono, duraciones entre 0.18 y 2.10 s.
+
+Importación
+- setup_pixelmaze_assets.py compila con Python.
+- Importa 8 SoundWave a /Game/PixelMaze/Audio.
+- Activa Looping para las dos BGM.
+- Crea ATT_Enemy con atenuación esférica y lo asigna a pasos/vocalización enemiga.
+
+Integración C++
+- Menú: AudioComponent local con BGM de menú.
+- Nivel: AudioComponent local con BGM_Maze_BreathingMaze_Loop.
+- Player: pasos por distancia recorrida y protección frente a teleports.
+- Enemigo: pasos y vocalización por transform replicado.
+- Contacto: Client RPC al jugador afectado.
+- Resultados: victoria/derrota por cliente, con distinción del ganador en Versus.
+- Rutas C++ y nombres generados por el importador coinciden.
+- Cabeceras UHT y delimitadores básicos revisados.
+
+Limitación
+- No se ha ejecutado UnrealBuildTool ni una sesión PIE porque Unreal Engine 5.6 no está instalado en este entorno.

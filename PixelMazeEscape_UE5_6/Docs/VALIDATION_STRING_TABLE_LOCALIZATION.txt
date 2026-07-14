@@ -1,0 +1,14 @@
+Pixel Maze Escape UE 5.6 — String Table localization validation
+
+- One CSV String Table: Content/Localization/StringTables/PixelMaze.csv
+- Total CSV rows: 83
+- Invariant rows: 1
+- Logical bilingual keys: 41
+- Supported languages: English (en), Spanish (es)
+- Missing referenced keys: 0
+- Duplicate CSV keys: 0
+- Placeholder parity issues between en/es: 0
+- C++ delimiter balance: OK
+- UHT generated-header include ordering: OK
+
+UnrealBuildTool was not executed because Unreal Engine 5.6 is not installed in this environment.

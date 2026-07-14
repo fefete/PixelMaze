@@ -1,0 +1,25 @@
+Pixel Maze Escape - Patrol Route Safety Validation
+===================================================
+
+Test independiente del algoritmo de generación:
+
+Casos simulados:                         4.000
+Niveles probados:                        1 a 8
+Modos por semilla:                       Single y Versus
+Rutas de patrulla sobre ruta obligatoria:    0
+Rutas de patrulla superpuestas:              0
+Caminos a la meta perdidos:                  0
+Promedio de enemigos colocados:           5,375
+Mínimo colocado en un caso válido:             1
+Máximo colocado:                              8
+
+La prueba trata todos los tiles de patrulla como si fueran obstáculos sólidos y
+confirma que cada jugador sigue teniendo una ruta completa hasta la salida.
+
+También se verificó:
+- Declaraciones y definiciones de las funciones nuevas.
+- Inclusión de Algo/Reverse.h y Containers/Queue.h.
+- Equilibrio de llaves y paréntesis a nivel de archivo.
+
+No se ejecutó UnrealBuildTool ni PIE porque Unreal Engine 5.6 no está instalado
+en este entorno.

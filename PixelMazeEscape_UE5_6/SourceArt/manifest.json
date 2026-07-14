@@ -1,0 +1,47 @@
+{
+  "name": "Pixel Maze Escape Source Art",
+  "native_tile_size": 32,
+  "license": "Generated specifically for this starter project. No third-party source art included.",
+  "files": [
+    {
+      "file": "floor.png",
+      "purpose": "Seamless floor texture"
+    },
+    {
+      "file": "wall.png",
+      "purpose": "Seamless wall texture"
+    },
+    {
+      "file": "player.png",
+      "purpose": "Player cube texture / sprite reference"
+    },
+    {
+      "file": "player2.png",
+      "purpose": "Second network player cube texture / sprite reference"
+    },
+    {
+      "file": "enemy.png",
+      "purpose": "Patrolling enemy cube texture / sprite reference"
+    },
+    {
+      "file": "exit.png",
+      "purpose": "Exit portal texture"
+    },
+    {
+      "file": "tileset_4x1.png",
+      "purpose": "Combined 4-tile sheet"
+    },
+    {
+      "file": "icon.png",
+      "purpose": "Project/store icon concept"
+    },
+    {
+      "file": "title_screen.png",
+      "purpose": "Pixel-art title screen concept"
+    },
+    {
+      "file": "fog.png",
+      "purpose": "Opaque local fog-of-war tile texture"
+    }
+  ]
+}

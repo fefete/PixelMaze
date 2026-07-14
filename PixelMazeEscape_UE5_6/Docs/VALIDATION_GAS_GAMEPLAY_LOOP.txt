@@ -1,0 +1,13 @@
+Pixel Maze Escape UE5.6 - GAS gameplay loop validation
+
+C++ headers: 29
+C++ sources: 28
+String table entries: 195
+Logical bilingual keys: 97
+Gameplay tags: 18
+WAV files: 8
+
+Errors: 0
+- None found by static validation.
+
+Important: UnrealBuildTool/PIE could not be executed because Unreal Engine 5.6 is not installed in this environment.

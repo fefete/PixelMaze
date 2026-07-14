@@ -1,0 +1,18 @@
+VALIDATION - ENEMY SIGHT / CHASE / RETURN
+
+C++ structural checks: OK
+State machine tokens: OK
+Line-of-sight trace token: OK
+Replicated behaviour state: OK
+Blueprint configuration forwarding: OK
+Header/implementation method parity: OK
+Delimiter balance: OK
+
+Procedural mazes simulated: 960
+BFS chase/return paths validated: 38400
+Disconnected walkable grids: 0
+Paths crossing walls: 0
+Non-cardinal path steps: 0
+Missing return paths: 0
+
+Runtime UnrealBuildTool compile: NOT EXECUTED (Unreal Engine 5.6 is not installed in this environment).
